@@ -1,0 +1,20 @@
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: myanimeschedule-mariadb
+    restart: unless-stopped
+
+    ports:
+      - "${MYSQLPORT}:3306"
+
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${MYSQLDATABASE}
+      MARIADB_USER: ${MYSQLUSER}
+      MARIADB_PASSWORD: ${MYSQLPASSWORD}
+
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+volumes:
+  mariadb_data:
