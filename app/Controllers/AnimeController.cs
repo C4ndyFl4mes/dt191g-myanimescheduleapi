@@ -1,4 +1,5 @@
 using App.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace App.Controllers;
@@ -14,7 +15,7 @@ public class AnimeController : ControllerBase
         _context = context;
     }
 
-    [HttpGet("indexed")]
+    [HttpGet("indexed"), Authorize]
     public async Task<IActionResult> GetIndexedAnimes()
     {
         var indexedAnimes = await _context.IndexedAnimes.AsAsyncEnumerable().ToListAsync();
