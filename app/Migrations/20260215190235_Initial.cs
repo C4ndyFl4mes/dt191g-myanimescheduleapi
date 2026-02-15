@@ -44,6 +44,8 @@ namespace app.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     ShowExplicitAnime = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     AllowReminders = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    TimeZoneID = table.Column<string>(type: "longtext", nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     UserName = table.Column<string>(type: "varchar(256)", maxLength: 256, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     NormalizedUserName = table.Column<string>(type: "varchar(256)", maxLength: 256, nullable: true)
@@ -80,7 +82,14 @@ namespace app.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
                     Mal_ID = table.Column<int>(type: "int", nullable: false),
-                    AutomaticRemovalDate = table.Column<DateTime>(type: "datetime(6)", nullable: false)
+                    Title = table.Column<string>(type: "longtext", nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ImageURL = table.Column<string>(type: "longtext", nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Status = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    TotalEpisodes = table.Column<int>(type: "int", nullable: true),
+                    ReleaseInstant = table.Column<long>(type: "bigint", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -209,6 +218,34 @@ namespace app.Migrations
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
+            migrationBuilder.CreateTable(
+                name: "ScheduleEntries",
+                columns: table => new
+                {
+                    UserId = table.Column<int>(type: "int", nullable: false),
+                    IndexedAnimeId = table.Column<int>(type: "int", nullable: false),
+                    DayOfWeek = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    LocalTime = table.Column<long>(type: "bigint", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ScheduleEntries", x => new { x.UserId, x.IndexedAnimeId });
+                    table.ForeignKey(
+                        name: "FK_ScheduleEntries_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ScheduleEntries_IndexedAnimes_IndexedAnimeId",
+                        column: x => x.IndexedAnimeId,
+                        principalTable: "IndexedAnimes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
                 table: "AspNetRoleClaims",
@@ -245,6 +282,11 @@ namespace app.Migrations
                 table: "AspNetUsers",
                 column: "NormalizedUserName",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ScheduleEntries_IndexedAnimeId",
+                table: "ScheduleEntries",
+                column: "IndexedAnimeId");
         }
 
         /// <inheritdoc />
@@ -266,13 +308,16 @@ namespace app.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
-                name: "IndexedAnimes");
+                name: "ScheduleEntries");
 
             migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
+                name: "IndexedAnimes");
         }
     }
 }

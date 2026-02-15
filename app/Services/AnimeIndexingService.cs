@@ -3,6 +3,7 @@ using App.DTOs;
 using App.Enums;
 using App.Models;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 namespace App.Services;
 
@@ -33,7 +34,7 @@ public class AnimeIndexingService : IHostedService, IDisposable
     private async void IndexAnimes(object? state)
     {
         using var scope = _serviceProvider.CreateScope();
-        
+
         ApplicationDbContext context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(); // Skapar en scope för att få en instans av ApplicationDbContext.
         int current_page = 1;
         Result? result = null;
@@ -65,11 +66,14 @@ public class AnimeIndexingService : IHostedService, IDisposable
             DateTime currentTime = DateTime.UtcNow;
 
             List<IndexedAnimeModel> animeList = [.. allAnimesToBeAdded
-                .Where(anime => anime.airing || anime.status != EStatus.FinishedAiring) // Endast indexera animes som fortfarande är airing eller inte har finished airing status.
                 .Select(anime => new IndexedAnimeModel
                 {
                     Mal_ID = anime.mal_id,
-                    AutomaticRemovalDate = DateTime.Parse(anime.aired.from, null, System.Globalization.DateTimeStyles.AdjustToUniversal).AddDays((anime.episodes ?? 1) * 7)
+                    Title = anime.titles.FirstOrDefault(t => t.type == "English")?.title ?? anime.titles.FirstOrDefault(t => t.type == "Default")?.title ?? "Unknown Title",
+                    ImageURL = anime.images.webp.image_url,
+                    Status = anime.status,
+                    TotalEpisodes = anime.episodes ?? null,
+                    ReleaseInstant = GetBroadcastInstant(anime.aired.from, anime.broadcast?.time, anime.broadcast?.timezone)
                 })];
 
             List<IndexedAnimeModel> existingAnimes = await context.IndexedAnimes.ToListAsync();
@@ -120,6 +124,35 @@ public class AnimeIndexingService : IHostedService, IDisposable
     public void Dispose()
     {
         _timer?.Dispose();
+    }
+
+    // Hjälpmetod för att beräkna release instant baserat på aired.from, broadcast time och timezone.
+    private Instant GetBroadcastInstant(string airedFromDate, string? broadcastTime, string? broadcastTimezone)
+    {
+        // Parsar aired.from datumet, om det inte går så används nuvarande UTC tid.
+        if (!DateTime.TryParse(airedFromDate, out var releaseDate))
+        {
+            releaseDate = DateTime.UtcNow;
+        }
+
+        // Parsar broadcast time (standardvärde 00:00 om det inte finns)
+        var time = "00:00";
+        if (!string.IsNullOrEmpty(broadcastTime))
+        {
+            time = broadcastTime;
+        }
+
+        // Kombinerar datum och tid
+        var dateTimeString = $"{releaseDate:yyyy-MM-dd} {time}";
+        if (!DateTime.TryParse(dateTimeString, out var localDateTime))
+        {
+            localDateTime = releaseDate;
+        }
+
+        // Behandlar den parsade datetime som den angivna tidszonen (standardvärde JST, Asia/Tokyo) och konverterar till Instant
+        var jstZone = DateTimeZoneProviders.Tzdb[broadcastTimezone ?? "Asia/Tokyo"];
+        var zonedDateTime = jstZone.AtStrictly(LocalDateTime.FromDateTime(localDateTime));
+        return zonedDateTime.ToInstant();
     }
 
 }

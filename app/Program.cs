@@ -60,7 +60,10 @@ public class Program
                 Version = "v1"
             });
         });
+        
         builder.Services.AddHostedService<AnimeIndexingService>();
+        
+        builder.Services.AddScoped<ScheduleService>();
 
         var app = builder.Build();
 

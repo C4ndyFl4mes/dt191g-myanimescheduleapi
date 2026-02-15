@@ -30,15 +30,53 @@ namespace app.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("AutomaticRemovalDate")
-                        .HasColumnType("datetime(6)");
+                    b.Property<string>("ImageURL")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<int>("Mal_ID")
+                        .HasColumnType("int");
+
+                    b.Property<long>("ReleaseInstant")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int?>("TotalEpisodes")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.ToTable("IndexedAnimes");
+                });
+
+            modelBuilder.Entity("App.Models.ScheduleEntryModel", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("IndexedAnimeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DayOfWeek")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<long?>("LocalTime")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("UserId", "IndexedAnimeId");
+
+                    b.HasIndex("IndexedAnimeId");
+
+                    b.ToTable("ScheduleEntries");
                 });
 
             modelBuilder.Entity("App.Models.UserModel", b =>
@@ -97,6 +135,10 @@ namespace app.Migrations
 
                     b.Property<bool>("ShowExplicitAnime")
                         .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("TimeZoneID")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("tinyint(1)");
@@ -247,6 +289,25 @@ namespace app.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("App.Models.ScheduleEntryModel", b =>
+                {
+                    b.HasOne("App.Models.IndexedAnimeModel", "IndexedAnime")
+                        .WithMany()
+                        .HasForeignKey("IndexedAnimeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("App.Models.UserModel", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("IndexedAnime");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<int>", b =>
