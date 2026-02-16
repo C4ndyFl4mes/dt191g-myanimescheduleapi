@@ -1,4 +1,5 @@
 using App.Data;
+using App.Exceptions;
 using App.Models;
 using App.Services;
 using DotNetEnv;
@@ -133,6 +134,8 @@ public class Program
             options.SwaggerEndpoint("/swagger/v1/swagger.json", "My Anime Schedule API");
             options.RoutePrefix = "api-docs";
         });
+
+        app.UseMiddleware<GlobalExceptionHandler>();
 
         app.Run();
     }

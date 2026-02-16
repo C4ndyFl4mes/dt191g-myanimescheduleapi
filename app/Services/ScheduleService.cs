@@ -1,20 +1,98 @@
 using App.Data;
 using App.DTOs;
 using App.Enums;
+using App.Exceptions;
 using App.Models;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 
 namespace App.Services;
 
-public class ScheduleService
+public class ScheduleService(ApplicationDbContext context)
 {
-    private readonly ApplicationDbContext _context;
+    private readonly ApplicationDbContext _context = context;
 
-    public ScheduleService(ApplicationDbContext context, UserManager<Models.UserModel> userManager)
+    // Metod för att hämta en användares schema baserat på deras schedule entries.
+    public async Task<ScheduleResponse> GetScheduleByUserID(int userID)
     {
-        _context = context;
+        UserModel? user = await _context.Users.FindAsync(userID)
+            ?? throw new NotFoundException("User not found.");
+
+        List<ScheduleEntryModel> scheduleEntries = await _context.ScheduleEntries
+            .Where(se => se.UserId == user.Id)
+            .Include(se => se.IndexedAnime)
+            .ToListAsync();
+
+        Instant now = SystemClock.Instance.GetCurrentInstant();
+        DateTimeZone userZone = DateTimeZoneProviders.Tzdb[user.TimeZoneID];
+        ZonedDateTime zoneNow = now.InZone(userZone);
+
+        // Denna veckas måndag.
+        int mondayOffset = ((int)zoneNow.DayOfWeek - (int)IsoDayOfWeek.Monday + 7) % 7;
+        LocalDate currentMonday = zoneNow.Date.PlusDays(-mondayOffset);
+        LocalDate currentSunday = currentMonday.PlusDays(6);
+
+        Dictionary<EWeekday, List<ScheduleEntryResponse>> weekDaysDictionary = new();
+
+        foreach (ScheduleEntryModel entry in scheduleEntries)
+        {
+            // Status får inte vara FinishedAiring.
+            if (entry.IndexedAnime!.Status == EStatus.FinishedAiring)
+            {
+                continue; // Om den är det skippas den.
+            }
+
+            // Veckodag och tid som ska anges för entryn.
+            EWeekday displayDay = entry.DayOfWeek!.Value;
+            LocalTime displayTime = entry.LocalTime!.Value;
+
+            LocalDate displayDate = currentMonday.PlusDays((int)displayDay);
+            LocalDateTime displayDateTime = displayDate + displayTime;
+            Instant displayInstant = userZone.AtStrictly(displayDateTime).ToInstant();
+
+            // I schemat om Status är CurrentlyAiring eller om release instant förfaller i det förflutna.
+            Instant releaseInstant = entry.IndexedAnime.ReleaseInstant;
+            ZonedDateTime releaseInUserZone = releaseInstant.InZone(userZone);
+            LocalDate releaseDate = releaseInUserZone.Date;
+
+            bool isCurrentlyAiring = entry.IndexedAnime.Status == EStatus.CurrentlyAiring;
+            bool hasAlreadyReleased = releaseInstant <= now;
+
+            if (!isCurrentlyAiring && !hasAlreadyReleased)
+            {
+                continue;
+            }
+
+            // Lägger till i schemat.
+            ScheduleEntryResponse scheduleEntryResponse = new()
+            {
+                Id = entry.IndexedAnimeId,
+                Title = entry.IndexedAnime.Title,
+                ImageURL = entry.IndexedAnime.ImageURL,
+                Time = TimeSpan.FromTicks(displayTime.TickOfDay)
+            };
+
+            // Grupperar entries per veckodag.
+            if (!weekDaysDictionary.ContainsKey(displayDay))
+            {
+                weekDaysDictionary[displayDay] = new List<ScheduleEntryResponse>();
+            }
+            weekDaysDictionary[displayDay].Add(scheduleEntryResponse);
+        }
+
+        List<ScheduleWeekDayResponse> scheduleWeekDays = weekDaysDictionary
+            .OrderBy(kvp => kvp.Key)
+            .Select(kvp => new ScheduleWeekDayResponse
+            {
+                DayOfWeek = kvp.Key,
+                ScheduleEntries = kvp.Value.OrderBy(se => se.Time).ToList()
+            })
+            .ToList();
+
+        return new ScheduleResponse
+        {
+            WeekDays = scheduleWeekDays
+        };
     }
 
     // Metod för att lägga till en schedule entry för en användare.
@@ -23,26 +101,21 @@ public class ScheduleService
         ScheduleEntryModel? existingEntry = await _context.ScheduleEntries
             .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnime!.Mal_ID == request.Mal_ID);
 
-        if (existingEntry != null)        {
-            throw new Exception("Schedule entry already exists for this user and anime.");
-        }
-        
+        if (existingEntry != null) throw new ConflictException("Schedule entry already exists for this user and anime.");
+
+        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Mal_ID == request.Mal_ID)
+        ?? throw new NotFoundException("Anime not found in index.");
+
+        // Förhindrar att animes som redan har sänts inte längre kan läggas till i schemat.
+        if (indexedAnime.Status == EStatus.FinishedAiring) throw new BadRequestException("Cannot add finished airing anime to schedule.");
+
         EWeekday? watchDay = request.WatchDay;
         TimeOnly? time = request.Time;
 
         if (watchDay == null || time == null)
         {
-            IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Mal_ID == request.Mal_ID);
-            if (indexedAnime == null)
-            {
-                throw new Exception("Anime not found in index.");
-            }
-
-            UserModel? user = await _context.Users.FindAsync(userId);
-            if (user == null)
-            {
-                throw new Exception("User not found.");
-            }
+            UserModel? user = await _context.Users.FindAsync(userId)
+            ?? throw new NotFoundException("User not found.");
 
             // Om användaren inte har angett dag och tid, beräknas det baserat på anime-releasen och användarens tidszon.
             DateTimeZone userZone = DateTimeZoneProviders.Tzdb[user.TimeZoneID];
@@ -57,7 +130,7 @@ public class ScheduleService
                 IsoDayOfWeek.Friday => EWeekday.Friday,
                 IsoDayOfWeek.Saturday => EWeekday.Saturday,
                 IsoDayOfWeek.Sunday => EWeekday.Sunday,
-                _ => throw new Exception("Invalid day of week.")
+                _ => throw new BadRequestException("Invalid day of week.")
             };
             LocalTime localTime = broadcastInUserZone.TimeOfDay;
             time = TimeOnly.FromTimeSpan(TimeSpan.FromTicks(localTime.TickOfDay));
@@ -68,101 +141,75 @@ public class ScheduleService
             UserId = userId,
             DayOfWeek = watchDay,
             LocalTime = LocalTime.FromTicksSinceMidnight(time!.Value.Ticks),
-            IndexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Mal_ID == request.Mal_ID) ?? throw new Exception("Anime not found in index.")
+            IndexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Mal_ID == request.Mal_ID) ?? throw new NotFoundException("Anime not found in index.")
         };
 
         await _context.ScheduleEntries.AddAsync(newEntry);
 
-        try
+        await _context.SaveChangesAsync();
+    }
+
+    // Metod för att uppdatera en schedule entry.
+    public async Task UpdateScheduleEntry(int userId, ScheduleUpdateRequest request)
+    {
+        ScheduleEntryModel? entry = await _context.ScheduleEntries
+            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnimeId == request.Id)
+            ?? throw new NotFoundException("Schedule entry doesn't exist for this user and anime.");
+
+        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Id == request.Id)
+        ?? throw new NotFoundException("Anime not found in index.");
+
+        // Förhindrar att animes som redan har sänts inte längre kan läggas till i schemat.
+        if (indexedAnime.Status == EStatus.FinishedAiring) throw new BadRequestException("Cannot update finished airing anime to schedule.");
+
+        EWeekday? watchDay = request.WatchDay;
+        TimeOnly? time = request.Time;
+
+        if (watchDay == null || time == null)
+        {
+            UserModel? user = await _context.Users.FindAsync(userId)
+            ?? throw new Exception("User not found.");
+
+            // Om användaren inte har angett dag och tid, beräknas det baserat på anime-releasen och användarens tidszon.
+            DateTimeZone userZone = DateTimeZoneProviders.Tzdb[user.TimeZoneID];
+            ZonedDateTime broadcastInUserZone = indexedAnime.ReleaseInstant.InZone(userZone);
+
+            watchDay = broadcastInUserZone.DayOfWeek switch
+            {
+                IsoDayOfWeek.Monday => EWeekday.Monday,
+                IsoDayOfWeek.Tuesday => EWeekday.Tuesday,
+                IsoDayOfWeek.Wednesday => EWeekday.Wednesday,
+                IsoDayOfWeek.Thursday => EWeekday.Thursday,
+                IsoDayOfWeek.Friday => EWeekday.Friday,
+                IsoDayOfWeek.Saturday => EWeekday.Saturday,
+                IsoDayOfWeek.Sunday => EWeekday.Sunday,
+                _ => throw new BadRequestException("Invalid day of week.")
+            };
+            LocalTime localTime = broadcastInUserZone.TimeOfDay;
+            time = TimeOnly.FromTimeSpan(TimeSpan.FromTicks(localTime.TickOfDay));
+        }
+
+        entry.LocalTime = time.HasValue ? LocalTime.FromTicksSinceMidnight(time.Value.Ticks) : null;
+        entry.DayOfWeek = watchDay;
+
+        if (_context.ChangeTracker.HasChanges())
         {
             await _context.SaveChangesAsync();
         }
-        catch (DbUpdateException ex)
-        {
-            Console.WriteLine($"An error occurred while adding the schedule entry: {ex.Message}");
-            throw;
-        }
     }
 
-    // Metod för att hämta en användares schema baserat på deras schedule entries.
-    public async Task<ScheduleResponse> GetScheduleByUserID(int userId)
+    // Metod för att radera en schedule entry.
+    public async Task DeleteScheduleEntry(int userId, int scheduleEntryId)
     {
-        UserModel? user = await _context.Users.FindAsync(userId);
-        if (user == null)
+        ScheduleEntryModel? entry = await _context.ScheduleEntries
+            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnimeId == scheduleEntryId)
+            ?? throw new Exception("Schedule entry doesn't exist for this user and anime.");
+
+        _context.ScheduleEntries.Remove(entry);
+
+        if (_context.ChangeTracker.HasChanges())
         {
-            throw new Exception("User not found.");
+            await _context.SaveChangesAsync();
         }
-
-         List<ScheduleEntryModel> scheduleEntries = await _context.ScheduleEntries
-            .Where(se => se.UserId == user.Id)
-            .Include(se => se.IndexedAnime)
-            .ToListAsync();
-
-        Instant now = SystemClock.Instance.GetCurrentInstant();
-        DateTimeZone zone = DateTimeZoneProviders.Tzdb[user.TimeZoneID];
-        ZonedDateTime zoneNow = now.InZone(zone);
-
-        Dictionary<EWeekday, List<ScheduleEntryResponse>> weekDaysDictionary = new Dictionary<EWeekday, List<ScheduleEntryResponse>>(); // Temporär dictionary för att gruppera entries per veckodag.
-
-        foreach (ScheduleEntryModel entry in scheduleEntries)
-        {
-            Instant releaseInstant = entry.IndexedAnime!.ReleaseInstant;
-            Duration timeSinceRelease = now - releaseInstant;
-            int weeksSinceRelease = (int)(timeSinceRelease / Duration.FromHours(24 * 7));
-
-            int availableEpisodes = weeksSinceRelease + 1; // Eftersom första avsnittet är tillgängligt vid release så läggs 1 till.
-
-            if (availableEpisodes < 0)
-            {
-                availableEpisodes = 0; // Om releasen är i framtiden, sätt till 0.
-            }
-
-            if (entry.IndexedAnime.TotalEpisodes != null)
-            {
-                availableEpisodes = Math.Min(availableEpisodes, entry.IndexedAnime.TotalEpisodes.Value);
-            }
-
-            int daysToAdd = ((int)entry.DayOfWeek! - (int)zoneNow.DayOfWeek + 7) % 7;
-
-            if (daysToAdd == 0 && zoneNow.TimeOfDay > entry.LocalTime!.Value)
-            {
-                daysToAdd = 7; // Om det är samma dag men tiden har passerat, schemalägg till nästa vecka.
-            }
-
-            LocalDate nextDate = zoneNow.Date.PlusDays(daysToAdd);
-            LocalDateTime nextLocalDateTime = nextDate + entry.LocalTime!.Value;
-            Instant nextWatchInstant = zone.AtStrictly(nextLocalDateTime).ToInstant();
-
-            // Om nästa schemalagda tittar-tillfälle är i framtiden, inkludera det i schemat.
-            ScheduleEntryResponse scheduleEntryResponse = new()
-            {
-                Id = entry.IndexedAnimeId,
-                Title = entry.IndexedAnime.Title,
-                ImageURL = entry.IndexedAnime.ImageURL,
-                Time = TimeSpan.FromTicks(entry.LocalTime!.Value.TickOfDay)
-            };
-
-            // Gruppera schemat per veckodag i dictionaryn.
-            if (!weekDaysDictionary.ContainsKey(entry.DayOfWeek.Value))
-            {
-                weekDaysDictionary[entry.DayOfWeek.Value] = new List<ScheduleEntryResponse>();
-            }
-            weekDaysDictionary[entry.DayOfWeek.Value].Add(scheduleEntryResponse);
-        }
-
-        // Skapa en lista av ScheduleWeekDayResponse baserat på dictionaryn, sortera veckodagarna i rätt ordning.
-        List<ScheduleWeekDayResponse>? scheduleWeekDays = weekDaysDictionary
-            .OrderBy(kvp => kvp.Key)
-            .Select(kvp => new ScheduleWeekDayResponse
-            {
-                DayOfWeek = kvp.Key,
-                ScheduleEntries = kvp.Value.OrderBy(se => se.Time).ToList()
-            })
-            .ToList();
-
-        return new ScheduleResponse
-        {
-            WeekDays = scheduleWeekDays
-        };
     }
 }
