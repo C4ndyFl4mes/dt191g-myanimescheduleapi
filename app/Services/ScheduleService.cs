@@ -8,10 +8,8 @@ using NodaTime;
 
 namespace App.Services;
 
-public class ScheduleService(ApplicationDbContext context)
+public class ScheduleService(ApplicationDbContext _context)
 {
-    private readonly ApplicationDbContext _context = context;
-
     // Metod för att hämta en användares schema baserat på deras schedule entries.
     public async Task<ScheduleResponse> GetScheduleByUserID(int userID)
     {

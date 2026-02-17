@@ -3,6 +3,7 @@ using App.Exceptions;
 using App.Models;
 using App.Services;
 using DotNetEnv;
+using FluentValidation;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
@@ -49,6 +50,18 @@ public class Program
         builder.Services.AddIdentityApiEndpoints<UserModel>(options => options.SignIn.RequireConfirmedAccount = false).AddRoles<IdentityRole<int>>()
             .AddEntityFrameworkStores<ApplicationDbContext>();
 
+        // Lösenordets struktur.
+        builder.Services.Configure<IdentityOptions>(options =>
+        {
+            options.Password.RequireDigit = true;
+            options.Password.RequireLowercase = true;
+            options.Password.RequireNonAlphanumeric = true;
+            options.Password.RequireUppercase = true;
+            options.Password.RequiredLength = 16;
+        });
+
+        builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly, includeInternalTypes: true);
+
         builder.Services.AddControllers();
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
@@ -61,9 +74,10 @@ public class Program
                 Version = "v1"
             });
         });
-        
+
         builder.Services.AddHostedService<AnimeIndexingBGService>();
-        
+
+        builder.Services.AddScoped<AuthService>();
         builder.Services.AddScoped<ScheduleService>();
 
         var app = builder.Build();
@@ -75,6 +89,8 @@ public class Program
         }
 
         app.UseHttpsRedirection();
+
+        app.UseAuthentication();
 
         app.UseAuthorization();
 
@@ -115,7 +131,7 @@ public class Program
                     UserName = moderatorUsername,
                     Email = moderatorEmail
                 };
-                
+
                 IdentityResult createResult = await userManager.CreateAsync(moderatorUser, moderatorPassword);
                 if (!createResult.Succeeded)
                 {

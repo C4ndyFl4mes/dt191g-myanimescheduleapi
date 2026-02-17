@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace App.Exceptions;
@@ -17,9 +18,11 @@ public class GlobalExceptionHandler(RequestDelegate next, ILogger<GlobalExceptio
             context.Response.StatusCode = ex switch
             {
                 BadRequestException => StatusCodes.Status400BadRequest,
+                ValidationException => StatusCodes.Status400BadRequest,
                 UnauthorizedException => StatusCodes.Status401Unauthorized,
                 NotFoundException => StatusCodes.Status404NotFound,
                 ConflictException => StatusCodes.Status409Conflict,
+                InternalServerException => StatusCodes.Status500InternalServerError,
                 _ => StatusCodes.Status500InternalServerError
             };
 
