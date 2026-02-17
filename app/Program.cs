@@ -62,7 +62,7 @@ public class Program
             });
         });
         
-        builder.Services.AddHostedService<AnimeIndexingService>();
+        builder.Services.AddHostedService<AnimeIndexingBGService>();
         
         builder.Services.AddScoped<ScheduleService>();
 
