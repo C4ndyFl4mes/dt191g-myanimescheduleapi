@@ -22,7 +22,9 @@ public class AuthService(UserManager<UserModel> _userManager, SignInManager<User
             {
                 UserName = request.Username,
                 Email = request.Email,
-                TimeZoneID = request.TimeZone
+                TimeZoneID = request.InitialSettings.TimeZone,
+                ShowExplicitAnime = request.InitialSettings.ShowExplicitAnime,
+                AllowReminders = request.InitialSettings.AllowReminders
             };
 
             // Skapar användaren.
