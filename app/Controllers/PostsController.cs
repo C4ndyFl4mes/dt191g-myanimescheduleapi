@@ -10,10 +10,12 @@ namespace App.Controllers;
 [ApiController, Route("api/[controller]")]
 public class PostsController(PostManagementService _postManagementService) : ControllerBase
 {
-    [HttpGet("{targetID}/{page}/{timezone}")]
-    public async Task<ActionResult> GetTargetPosts(int targetID, int page, string timezone)
+    [HttpGet("{targetID}/{page}")]
+    public async Task<ActionResult> GetTargetPosts(int targetID, int page, [FromQuery] string timezone, IValidator<PostGetRequest> validator)
     {
-        PostGetRequest request = new(){ TargetID = targetID, Page = page, TimeZone = timezone.Replace("_", "/")};
+        PostGetRequest request = new(){ TargetID = targetID, Page = page, TimeZone = timezone};
+
+        validator.ValidateAndThrow(request);
 
         DataPaginatedResponse<PostResponse> data = await _postManagementService.GetTargetPosts(request);
 

@@ -39,19 +39,36 @@ public class UserController(AuthService _authService, UserManagementService _use
         return NoContent();
     }
 
-    [HttpGet("profile"), Authorize]
-    public async Task<ActionResult<ProfileResponse>> GetProfile()
-    {
-        ProfileResponse profile = await _userManagementService.Profile(User.GetUserID());
-
-        return Ok(profile);
-    }
-
-    [HttpDelete("user/{targetID}"), Authorize(Roles = "Moderator")]
-    public async Task<ActionResult<bool>> DeleteUser(int targetID)
+    [HttpDelete("{targetID}"), Authorize(Roles = "Moderator")]
+    public async Task<ActionResult> DeleteUser(int targetID)
     {
         await _userManagementService.DeleteUser(User.GetUserID(), targetID);
 
         return NoContent();
+    }
+
+    [HttpGet("info/{page}"), Authorize]
+    public async Task<ActionResult<UserInfoResponse>> GetUserInfo([FromQuery] int? targetID, [FromQuery] string? timezone, int page, IValidator<PostGetRequest> validator)
+    {
+        PostGetRequest request = new(){ TargetID = targetID, Page = page, TimeZone = timezone};
+        
+        validator.ValidateAndThrow(request);
+
+        UserInfoResponse userInfo = await _userManagementService.GetUserInfo(User.GetUserID(), request);
+
+        return Ok(userInfo);    
+    }
+
+    [HttpPut("settings"), Authorize]
+    public async Task<ActionResult<UserSettings>> SetSettings(UserSettings settings, IValidator<UserSettings> validator)
+    {
+        validator.ValidateAndThrow(settings);
+        
+        UserSettings? updatedSettings = await _userManagementService.SetSettings(User.GetUserID(), settings);
+
+        if (updatedSettings == null) 
+            return NoContent();
+
+        return Ok(updatedSettings);
     }
 }

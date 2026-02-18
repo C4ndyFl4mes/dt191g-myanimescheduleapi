@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using App.DTOs;
 using FluentValidation;
+using NodaTime;
 
 namespace App.Validators;
 
@@ -40,6 +41,22 @@ public class SignUpRequestValidator : AbstractValidator<SignUpRequest>
                 if (!password.Any(c => !char.IsLetterOrDigit(c)))
                     context.AddFailure("Password must contain at least one special character.");
             });
+        RuleFor(x => x.TimeZone)
+             .NotEmpty()
+                .WithMessage("TimeZone is required.")
+            .Must(timezone =>
+            {
+                try
+                {
+                    _ = DateTimeZoneProviders.Tzdb[timezone];
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            })
+                .WithMessage("'{PropertyName}' is not a valid IANA timezone.");
     }
 
     // Skyddar från skadlig HTML.

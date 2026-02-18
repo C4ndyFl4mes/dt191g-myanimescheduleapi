@@ -37,7 +37,8 @@ public class PostManagementService(ApplicationDbContext _context, UserManager<Us
             CreatedAt = p.CreatedAt
         }).ToListAsync();
 
-        DateTimeZone timeZone = DateTimeZoneProviders.Tzdb[request.TimeZone]; // Hämtar DateTimeZone genom en sträng.
+        // Hämtar DateTimeZone genom en sträng. ! pga i query i controller måste den vara string, därför är denna inte null.
+        DateTimeZone timeZone = DateTimeZoneProviders.Tzdb[request.TimeZone!];
         List<PostResponse> convertedPosts = posts
             .Select(p => new PostResponse
             {
@@ -96,7 +97,7 @@ public class PostManagementService(ApplicationDbContext _context, UserManager<Us
     {
         PostModel? post = await _context.Posts.FindAsync(request.TargetID) ??
             throw new NotFoundException("Target post does not exist.");
-        
+
         UserModel? user = await _context.Users.FindAsync(userID) ??
             throw new NotFoundException("User does not exist.");
 
@@ -119,11 +120,11 @@ public class PostManagementService(ApplicationDbContext _context, UserManager<Us
 
         UserModel? user = await _context.Users.FindAsync(userID) ??
             throw new NotFoundException("User does not exist.");
-        
+
         IList<string> roles = await _userManager.GetRolesAsync(user);
         if (!roles.Contains("Moderator") || user.Id != post.AuthorId)
             throw new UnauthorizedException("You are not allowed to delete this user's post.");
-            
+
         _context.Remove(post);
 
         if (_context.ChangeTracker.HasChanges())

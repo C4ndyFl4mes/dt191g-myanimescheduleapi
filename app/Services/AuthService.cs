@@ -21,7 +21,8 @@ public class AuthService(UserManager<UserModel> _userManager, SignInManager<User
             UserModel user = new()
             {
                 UserName = request.Username,
-                Email = request.Email
+                Email = request.Email,
+                TimeZoneID = request.TimeZone
             };
 
             // Skapar användaren.
@@ -38,14 +39,12 @@ public class AuthService(UserManager<UserModel> _userManager, SignInManager<User
                 throw new InternalServerException($"Failed to assing role: {string.Join(", ", roleResult.Errors.Select(e => e.Description))}");
             }
 
-            return new ProfileResponse()
+            // Loggar in direkt efter registrering.
+            return await SignIn(new()
             {
-                Username = user.UserName!,
-                Role = "Member",
-                ProfileImageURL = user.ProfileImageURL,
-                ShowExplicitAnime = user.ShowExplicitAnime,
-                AllowReminders = user.AllowReminders
-            };
+                Email = request.Email,
+                Password = request.Password
+            });
         }
 
         // Detta kan vara dåligt då det visar att en användare med det angivna användarnamnet eller e-posten redan finns i databasen.
@@ -69,9 +68,13 @@ public class AuthService(UserManager<UserModel> _userManager, SignInManager<User
         {
             Username = user.UserName!,
             Role = role,
-            ProfileImageURL = user.ProfileImageURL,
-            ShowExplicitAnime = user.ShowExplicitAnime,
-            AllowReminders = user.AllowReminders
+            Settings = new()
+            {
+                ProfileImageURL = user.ProfileImageURL,
+                ShowExplicitAnime = user.ShowExplicitAnime,
+                AllowReminders = user.AllowReminders,
+                TimeZone = user.TimeZoneID
+            }
         };
     }
 
