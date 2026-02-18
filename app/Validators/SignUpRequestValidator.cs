@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using App.DTOs;
 using FluentValidation;
 
@@ -13,7 +14,9 @@ public class SignUpRequestValidator : AbstractValidator<SignUpRequest>
             .MinimumLength(3)
                 .WithMessage("Username cannot be shorter than 3 characters.")
             .MaximumLength(20)
-                .WithMessage("Username cannot be longer than 20 characters.");
+                .WithMessage("Username cannot be longer than 20 characters.")
+            .Must(NotContainHarmfulContent)
+                .WithMessage("Content contains HTML or Script tags, which is not allowed.");
 
         RuleFor(x => x.Email)
             .NotEmpty()
@@ -37,5 +40,15 @@ public class SignUpRequestValidator : AbstractValidator<SignUpRequest>
                 if (!password.Any(c => !char.IsLetterOrDigit(c)))
                     context.AddFailure("Password must contain at least one special character.");
             });
+    }
+
+    // Skyddar från skadlig HTML.
+    private bool NotContainHarmfulContent(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return true;
+
+        // Content med HTML taggar förbjuds.
+        return !Regex.IsMatch(content, @"<[^>]*>", RegexOptions.IgnoreCase);
     }
 }

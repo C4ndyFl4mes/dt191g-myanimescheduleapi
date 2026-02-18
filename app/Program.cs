@@ -79,6 +79,7 @@ public class Program
 
         builder.Services.AddScoped<AuthService>();
         builder.Services.AddScoped<UserManagementService>();
+        builder.Services.AddScoped<PostManagementService>();
         builder.Services.AddScoped<ScheduleService>();
 
         var app = builder.Build();
