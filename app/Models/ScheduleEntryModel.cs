@@ -12,6 +12,6 @@ public class ScheduleEntryModel
     public IndexedAnimeModel? IndexedAnime { get; set; }
 
     [EnumDataType(typeof(EWeekday))]
-    public required EWeekday? DayOfWeek { get; set; }
-    public required LocalTime? LocalTime { get; set; }
+    public required EWeekday DayOfWeek { get; set; }
+    public required LocalTime LocalTime { get; set; }
 }

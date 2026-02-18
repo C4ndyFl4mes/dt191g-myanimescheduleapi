@@ -5,11 +5,15 @@ using App.Exceptions;
 using App.Models;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
+using NodaTime.Text;
 
 namespace App.Services;
 
 public class ScheduleService(ApplicationDbContext _context)
 {
+
+    private static readonly LocalTimePattern ScheduleTimePattern = LocalTimePattern.CreateWithInvariantCulture("HH:mm");
+
     // Metod för att hämta en användares schema baserat på deras schedule entries.
     public async Task<ScheduleResponse> GetScheduleByUserID(int userID)
     {
@@ -41,8 +45,8 @@ public class ScheduleService(ApplicationDbContext _context)
             }
 
             // Veckodag och tid som ska anges för entryn.
-            EWeekday displayDay = entry.DayOfWeek!.Value;
-            LocalTime displayTime = entry.LocalTime!.Value;
+            EWeekday displayDay = entry.DayOfWeek;
+            LocalTime displayTime = entry.LocalTime;
 
             LocalDate displayDate = currentMonday.PlusDays((int)displayDay);
             LocalDateTime displayDateTime = displayDate + displayTime;
@@ -67,7 +71,7 @@ public class ScheduleService(ApplicationDbContext _context)
                 Id = entry.IndexedAnimeId,
                 Title = entry.IndexedAnime.Title,
                 ImageURL = entry.IndexedAnime.ImageURL,
-                Time = TimeSpan.FromTicks(displayTime.TickOfDay)
+                Time = ScheduleTimePattern.Format(displayTime)
             };
 
             // Grupperar entries per veckodag.
@@ -137,7 +141,7 @@ public class ScheduleService(ApplicationDbContext _context)
         ScheduleEntryModel newEntry = new()
         {
             UserId = userId,
-            DayOfWeek = watchDay,
+            DayOfWeek = (EWeekday)watchDay,
             LocalTime = LocalTime.FromTicksSinceMidnight(time!.Value.Ticks),
             IndexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Mal_ID == request.Mal_ID) ?? throw new NotFoundException("Anime not found in index.")
         };
@@ -187,8 +191,8 @@ public class ScheduleService(ApplicationDbContext _context)
             time = TimeOnly.FromTimeSpan(TimeSpan.FromTicks(localTime.TickOfDay));
         }
 
-        entry.LocalTime = time.HasValue ? LocalTime.FromTicksSinceMidnight(time.Value.Ticks) : null;
-        entry.DayOfWeek = watchDay;
+        entry.LocalTime = LocalTime.FromTicksSinceMidnight(time.Value.Ticks);
+        entry.DayOfWeek = (EWeekday)watchDay;
 
         if (_context.ChangeTracker.HasChanges())
         {

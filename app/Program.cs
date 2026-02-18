@@ -42,7 +42,7 @@ public class Program
         // Add services to the container.
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
-            options.UseMySql(connectionString, new MySqlServerVersion(new Version(9, 0, 0)));
+            options.UseMySql(connectionString, new MariaDbServerVersion(new Version(11, 0, 0)));
         });
 
         builder.Services.AddAuthorization();
@@ -78,6 +78,7 @@ public class Program
         builder.Services.AddHostedService<AnimeIndexingBGService>();
 
         builder.Services.AddScoped<AuthService>();
+        builder.Services.AddScoped<UserManagementService>();
         builder.Services.AddScoped<ScheduleService>();
 
         var app = builder.Build();

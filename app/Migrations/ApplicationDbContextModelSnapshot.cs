@@ -37,8 +37,8 @@ namespace app.Migrations
                     b.Property<int>("Mal_ID")
                         .HasColumnType("int");
 
-                    b.Property<long>("ReleaseInstant")
-                        .HasColumnType("bigint");
+                    b.Property<DateTime>("ReleaseInstant")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -57,6 +57,37 @@ namespace app.Migrations
                     b.ToTable("IndexedAnimes");
                 });
 
+            modelBuilder.Entity("App.Models.PostModel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AnimeId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnimeId");
+
+                    b.HasIndex("AuthorId");
+
+                    b.ToTable("Posts");
+                });
+
             modelBuilder.Entity("App.Models.ScheduleEntryModel", b =>
                 {
                     b.Property<int>("UserId")
@@ -66,11 +97,14 @@ namespace app.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("DayOfWeek")
+                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
 
-                    b.Property<long?>("LocalTime")
-                        .HasColumnType("bigint");
+                    b.Property<string>("LocalTime")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("char(5)");
 
                     b.HasKey("UserId", "IndexedAnimeId");
 
@@ -289,6 +323,25 @@ namespace app.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("App.Models.PostModel", b =>
+                {
+                    b.HasOne("App.Models.IndexedAnimeModel", "Anime")
+                        .WithMany()
+                        .HasForeignKey("AnimeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("App.Models.UserModel", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Anime");
+
+                    b.Navigation("Author");
                 });
 
             modelBuilder.Entity("App.Models.ScheduleEntryModel", b =>

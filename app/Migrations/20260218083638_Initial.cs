@@ -89,7 +89,7 @@ namespace app.Migrations
                     Status = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     TotalEpisodes = table.Column<int>(type: "int", nullable: true),
-                    ReleaseInstant = table.Column<long>(type: "bigint", nullable: false)
+                    ReleaseInstant = table.Column<DateTime>(type: "datetime(6)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -219,14 +219,45 @@ namespace app.Migrations
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
+                name: "Posts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    AuthorId = table.Column<int>(type: "int", nullable: false),
+                    AnimeId = table.Column<int>(type: "int", nullable: false),
+                    Content = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Posts", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Posts_AspNetUsers_AuthorId",
+                        column: x => x.AuthorId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Posts_IndexedAnimes_AnimeId",
+                        column: x => x.AnimeId,
+                        principalTable: "IndexedAnimes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
                 name: "ScheduleEntries",
                 columns: table => new
                 {
                     UserId = table.Column<int>(type: "int", nullable: false),
                     IndexedAnimeId = table.Column<int>(type: "int", nullable: false),
-                    DayOfWeek = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
+                    DayOfWeek = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    LocalTime = table.Column<long>(type: "bigint", nullable: true)
+                    LocalTime = table.Column<string>(type: "char(5)", maxLength: 5, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>
                 {
@@ -284,6 +315,16 @@ namespace app.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Posts_AnimeId",
+                table: "Posts",
+                column: "AnimeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Posts_AuthorId",
+                table: "Posts",
+                column: "AuthorId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ScheduleEntries_IndexedAnimeId",
                 table: "ScheduleEntries",
                 column: "IndexedAnimeId");
@@ -306,6 +347,9 @@ namespace app.Migrations
 
             migrationBuilder.DropTable(
                 name: "AspNetUserTokens");
+
+            migrationBuilder.DropTable(
+                name: "Posts");
 
             migrationBuilder.DropTable(
                 name: "ScheduleEntries");

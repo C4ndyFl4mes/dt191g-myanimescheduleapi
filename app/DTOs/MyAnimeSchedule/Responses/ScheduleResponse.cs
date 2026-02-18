@@ -18,5 +18,5 @@ public record ScheduleEntryResponse
     public required int Id { get; set; }
     public required string Title { get; set; }
     public required string ImageURL { get; set; }
-    public required TimeSpan Time { get; set; }
+    public required string Time { get; set; }
 }
