@@ -30,6 +30,10 @@ namespace app.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("BroadcastWeekday")
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)");
+
                     b.Property<string>("ImageURL")
                         .IsRequired()
                         .HasColumnType("longtext");

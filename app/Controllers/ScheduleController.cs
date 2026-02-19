@@ -8,10 +8,8 @@ namespace App.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ScheduleController(ScheduleService scheduleService) : ControllerBase
+public class ScheduleController(ScheduleService _scheduleService) : ControllerBase
 {
-    private readonly ScheduleService _scheduleService = scheduleService;
-
     // Endpoint för GET: den hämtar en användares schedule.
     [HttpGet("schedule"), Authorize]
     public async Task<ActionResult<ScheduleResponse>> GetSchedule()
@@ -44,11 +42,11 @@ public class ScheduleController(ScheduleService scheduleService) : ControllerBas
 
     // Endpoint för DELETE: den raderar en schedule entry för en användare.
     [HttpDelete("entry"), Authorize]
-    public async Task<ActionResult> DeleteScheduleEntry(int scheduleEntryId)
+    public async Task<ActionResult> DeleteScheduleEntry(int indexedAnimeId)
     {
         int userID = User.GetUserID();
 
-        await _scheduleService.DeleteScheduleEntry(userID, scheduleEntryId);
+        await _scheduleService.DeleteScheduleEntry(userID, indexedAnimeId);
         return NoContent();
     }
 }

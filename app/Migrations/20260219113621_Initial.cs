@@ -89,7 +89,9 @@ namespace app.Migrations
                     Status = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     TotalEpisodes = table.Column<int>(type: "int", nullable: true),
-                    ReleaseInstant = table.Column<DateTime>(type: "datetime(6)", nullable: false)
+                    ReleaseInstant = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    BroadcastWeekday = table.Column<string>(type: "varchar(10)", maxLength: 10, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>
                 {

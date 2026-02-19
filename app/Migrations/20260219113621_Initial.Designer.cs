@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace app.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260218132417_Initial")]
+    [Migration("20260219113621_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -32,6 +32,10 @@ namespace app.Migrations
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BroadcastWeekday")
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)");
 
                     b.Property<string>("ImageURL")
                         .IsRequired()

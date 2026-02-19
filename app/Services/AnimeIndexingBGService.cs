@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using App.Data;
 using App.DTOs;
 using App.Enums;
@@ -32,6 +33,7 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
     // Indexerar alla animes, samt uppdaterar och raderar om det behövs.
     private async Task StartIndexingAnimes(CancellationToken token)
     {
+        long startTime = Stopwatch.GetTimestamp();
         using IServiceScope scope = _scopeFactory.CreateScope();
         ApplicationDbContext context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -42,7 +44,7 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
 
         do
         {
-            result = await _http.GetFromJsonAsync<Result>($"https://api.jikan.moe/v4/seasons/now?page={currentPage}");
+            result = await _http.GetFromJsonAsync<Result>($"https://api.jikan.moe/v4/seasons/now?continuing&page={currentPage}");
             if (result == null)
             {
                 break; // Om det blir null hoppar vi ur do-while-loopen för att sedan hamna i if-satsen under loopen.
@@ -59,6 +61,23 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
                     continue; // Skippar denna anime då det antagligen blev något fel i GetBroadcastInstant exempelvis att anime.aired.from är ogiltig.
                 }
 
+                // Extraherar broadcast weekday från broadcast data.
+                EWeekday? broadcastWeekday = null;
+                if (anime.broadcast?.day != null)
+                {
+                    broadcastWeekday = anime.broadcast.day.ToLower() switch
+                    {
+                        "monday" or "mondays" => EWeekday.Monday,
+                        "tuesday" or "tuesdays" => EWeekday.Tuesday,
+                        "wednesday" or "wednesdays" => EWeekday.Wednesday,
+                        "thursday" or "thursdays" => EWeekday.Thursday,
+                        "friday" or "fridays" => EWeekday.Friday,
+                        "saturday" or "saturdays" => EWeekday.Saturday,
+                        "sunday" or "sundays" => EWeekday.Sunday,
+                        _ => null
+                    };
+                }
+
                 try
                 {
                     // Lägger till en anime i pending dictionary.
@@ -69,7 +88,8 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
                         ImageURL = anime.images.webp.image_url,
                         Status = anime.status,
                         TotalEpisodes = anime.episodes,
-                        ReleaseInstant = (Instant)releaseInstant
+                        ReleaseInstant = (Instant)releaseInstant,
+                        BroadcastWeekday = broadcastWeekday
                     });
                 }
                 catch (ArgumentException ex)
@@ -79,10 +99,10 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
                 }
             }
 
-            Console.WriteLine($"{pendingAnimes.Count} animes is now pending. Progress: {result.pagination.current_page}/${result.pagination.last_visible_page}.");
+            Console.WriteLine($"{pendingAnimes.Count} animes is now pending. Progress: {result.pagination.current_page}/{result.pagination.last_visible_page}. Time Elapsed: {Stopwatch.GetElapsedTime(startTime)}");
             currentPage++;
 
-            await Task.Delay(3000); // API:ets rate limit är 3 req/s och 60 req/min. Även om antalet sidor är 20 kommer vi precis till 60 req/min. Men detta kommer troligtvis inte hända.
+            await Task.Delay(1000); // API:ets rate limit är 3 req/s och 60 req/min. 
         }
         while (result!.pagination.has_next_page);
 
@@ -108,7 +128,14 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
             pendingAnimes.Remove(pending.Mal_ID); // Raderar alla animes from pendingAnimes som redan finns i databasen.
 
             // Kollar om någonting har ändrats.
-            if (existing.Title != pending.Title || existing.ImageURL != pending.ImageURL || existing.Status != pending.Status || existing.TotalEpisodes != pending.TotalEpisodes || existing.ReleaseInstant != pending.ReleaseInstant)
+            if (
+                existing.Title != pending.Title ||
+                existing.ImageURL != pending.ImageURL ||
+                existing.Status != pending.Status ||
+                existing.TotalEpisodes != pending.TotalEpisodes ||
+                existing.ReleaseInstant != pending.ReleaseInstant ||
+                existing.BroadcastWeekday != pending.BroadcastWeekday
+            )
             {
                 pendingUpdates.Add(new()
                 {
@@ -118,7 +145,8 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
                     ImageURL = pending.ImageURL,
                     Status = pending.Status,
                     TotalEpisodes = pending.TotalEpisodes,
-                    ReleaseInstant = pending.ReleaseInstant
+                    ReleaseInstant = pending.ReleaseInstant,
+                    BroadcastWeekday = pending.BroadcastWeekday
                 });
                 if (pending.Status == EStatus.FinishedAiring)
                 {
@@ -140,7 +168,8 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
             ImageURL = p.ImageURL,
             Status = p.Status,
             TotalEpisodes = p.TotalEpisodes,
-            ReleaseInstant = p.ReleaseInstant
+            ReleaseInstant = p.ReleaseInstant,
+            BroadcastWeekday = p.BroadcastWeekday
         }));
 
         // Förbereder alla databasoperationer.
@@ -162,7 +191,7 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
         try
         {
             int totalChanges = await context.SaveChangesAsync(token);
-            Console.WriteLine($"Total changes: {totalChanges} | New entries: {pendingInsertions.Count} | Updated entries: {pendingUpdates.Count} | Deleted entries: {animesFlagedForFinishedAiring} | Unchanged entries: {unchangedRows}.");
+            Console.WriteLine($"Total changes: {totalChanges} | New entries: {pendingInsertions.Count} | Updated entries: {pendingUpdates.Count} | Deleted entries: {animesFlagedForFinishedAiring} | Unchanged entries: {unchangedRows}. Total Elapsed time: {Stopwatch.GetElapsedTime(startTime)}");
         }
         catch (Exception ex)
         {
@@ -194,7 +223,7 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
             LocalTime time = LocalTimePattern.CreateWithInvariantCulture("HH:mm").Parse(broadcastTime).Value;
 
             // Lokal datum och tid för sändarens tidszon.
-            LocalDateTime localDateTime = LocalDate.FromDateTime(releaseDate)  + time;
+            LocalDateTime localDateTime = LocalDate.FromDateTime(releaseDate) + time;
             ZonedDateTime zoned = localDateTime.InZoneLeniently(zone);
 
             return zoned.ToInstant();

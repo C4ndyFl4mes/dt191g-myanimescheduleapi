@@ -41,7 +41,7 @@ public class SignUpRequestValidator : AbstractValidator<SignUpRequest>
                 if (!password.Any(c => !char.IsLetterOrDigit(c)))
                     context.AddFailure("Password must contain at least one special character.");
             });
-        RuleFor(x => x.TimeZone)
+        RuleFor(x => x.InitialSettings.TimeZone)
              .NotEmpty()
                 .WithMessage("TimeZone is required.")
             .Must(timezone =>

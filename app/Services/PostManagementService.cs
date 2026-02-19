@@ -122,7 +122,8 @@ public class PostManagementService(ApplicationDbContext _context, UserManager<Us
             throw new NotFoundException("User does not exist.");
 
         IList<string> roles = await _userManager.GetRolesAsync(user);
-        if (!roles.Contains("Moderator") || user.Id != post.AuthorId)
+
+        if (!roles.Contains("Moderator") && user.Id != post.AuthorId)
             throw new UnauthorizedException("You are not allowed to delete this user's post.");
 
         _context.Remove(post);

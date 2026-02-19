@@ -17,8 +17,8 @@ public class ScheduleService(ApplicationDbContext _context)
     // Metod för att hämta en användares schema baserat på deras schedule entries.
     public async Task<ScheduleResponse> GetScheduleByUserID(int userID)
     {
-        UserModel? user = await _context.Users.FindAsync(userID)
-            ?? throw new NotFoundException("User not found.");
+        UserModel? user = await _context.Users.FindAsync(userID) ??
+            throw new NotFoundException("User not found.");
 
         List<ScheduleEntryModel> scheduleEntries = await _context.ScheduleEntries
             .Where(se => se.UserId == user.Id)
@@ -101,41 +101,57 @@ public class ScheduleService(ApplicationDbContext _context)
     public async Task AddScheduleEntry(int userId, ScheduleRequest request)
     {
         ScheduleEntryModel? existingEntry = await _context.ScheduleEntries
-            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnime!.Mal_ID == request.Mal_ID);
+            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnime!.Mal_ID == request.Mal_ID) ??
+                throw new ConflictException("Schedule entry already exists for this user and anime.");
 
-        if (existingEntry != null) throw new ConflictException("Schedule entry already exists for this user and anime.");
-
-        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Mal_ID == request.Mal_ID)
-        ?? throw new NotFoundException("Anime not found in index.");
+        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Mal_ID == request.Mal_ID) ??
+            throw new NotFoundException("Anime not found in index.");
 
         // Förhindrar att animes som redan har sänts inte längre kan läggas till i schemat.
-        if (indexedAnime.Status == EStatus.FinishedAiring) throw new BadRequestException("Cannot add finished airing anime to schedule.");
+        if (indexedAnime.Status == EStatus.FinishedAiring)
+            throw new BadRequestException("Cannot add finished airing anime to schedule.");
 
         EWeekday? watchDay = request.WatchDay;
         TimeOnly? time = request.Time;
 
         if (watchDay == null || time == null)
         {
-            UserModel? user = await _context.Users.FindAsync(userId)
-            ?? throw new NotFoundException("User not found.");
+            UserModel? user = await _context.Users.FindAsync(userId) ??
+                throw new NotFoundException("User not found.");
 
             // Om användaren inte har angett dag och tid, beräknas det baserat på anime-releasen och användarens tidszon.
             DateTimeZone userZone = DateTimeZoneProviders.Tzdb[user.TimeZoneID];
-            ZonedDateTime broadcastInUserZone = indexedAnime.ReleaseInstant.InZone(userZone);
 
-            watchDay = broadcastInUserZone.DayOfWeek switch
-            {
-                IsoDayOfWeek.Monday => EWeekday.Monday,
-                IsoDayOfWeek.Tuesday => EWeekday.Tuesday,
-                IsoDayOfWeek.Wednesday => EWeekday.Wednesday,
-                IsoDayOfWeek.Thursday => EWeekday.Thursday,
-                IsoDayOfWeek.Friday => EWeekday.Friday,
-                IsoDayOfWeek.Saturday => EWeekday.Saturday,
-                IsoDayOfWeek.Sunday => EWeekday.Sunday,
-                _ => throw new BadRequestException("Invalid day of week.")
-            };
-            LocalTime localTime = broadcastInUserZone.TimeOfDay;
+            Instant now = SystemClock.Instance.GetCurrentInstant();
+            Instant threeMonthsAgo = now.Minus(Duration.FromDays(90));
+            bool isOlderThanThreeMonths = indexedAnime.ReleaseInstant < threeMonthsAgo;
+
+            // Beroende på anime är äldre än 3 månader eller inte. Vid äldre används broadcast informationen.
+            ZonedDateTime releaseInUserZone = indexedAnime.ReleaseInstant.InZone(userZone);
+            LocalTime localTime = releaseInUserZone.TimeOfDay;
             time = TimeOnly.FromTimeSpan(TimeSpan.FromTicks(localTime.TickOfDay));
+
+            // Väljer veckodag baserat på ålder och om broadcast data finns.
+            if (isOlderThanThreeMonths && indexedAnime.BroadcastWeekday != null)
+            {
+                // För äldre animes (3+ månader), används broadcast weekday.
+                watchDay = indexedAnime.BroadcastWeekday;
+            }
+            else
+            {
+                // För nya animes, används premiere date weekday.
+                watchDay = releaseInUserZone.DayOfWeek switch
+                {
+                    IsoDayOfWeek.Monday => EWeekday.Monday,
+                    IsoDayOfWeek.Tuesday => EWeekday.Tuesday,
+                    IsoDayOfWeek.Wednesday => EWeekday.Wednesday,
+                    IsoDayOfWeek.Thursday => EWeekday.Thursday,
+                    IsoDayOfWeek.Friday => EWeekday.Friday,
+                    IsoDayOfWeek.Saturday => EWeekday.Saturday,
+                    IsoDayOfWeek.Sunday => EWeekday.Sunday,
+                    _ => throw new BadRequestException("Invalid day of week.")
+                };
+            }
         }
 
         ScheduleEntryModel newEntry = new()
@@ -155,40 +171,57 @@ public class ScheduleService(ApplicationDbContext _context)
     public async Task UpdateScheduleEntry(int userId, ScheduleUpdateRequest request)
     {
         ScheduleEntryModel? entry = await _context.ScheduleEntries
-            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnimeId == request.Id)
-            ?? throw new NotFoundException("Schedule entry doesn't exist for this user and anime.");
+            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnimeId == request.Id) ??
+                throw new NotFoundException("Schedule entry doesn't exist for this user and anime.");
 
-        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Id == request.Id)
-        ?? throw new NotFoundException("Anime not found in index.");
+        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Id == request.Id) ??
+            throw new NotFoundException("Anime not found in index.");
 
         // Förhindrar att animes som redan har sänts inte längre kan läggas till i schemat.
-        if (indexedAnime.Status == EStatus.FinishedAiring) throw new BadRequestException("Cannot update finished airing anime to schedule.");
+        if (indexedAnime.Status == EStatus.FinishedAiring)
+            throw new BadRequestException("Cannot update finished airing anime to schedule.");
 
         EWeekday? watchDay = request.WatchDay;
         TimeOnly? time = request.Time;
 
         if (watchDay == null || time == null)
         {
-            UserModel? user = await _context.Users.FindAsync(userId)
-            ?? throw new Exception("User not found.");
+            UserModel? user = await _context.Users.FindAsync(userId) ??
+                throw new Exception("User not found.");
 
             // Om användaren inte har angett dag och tid, beräknas det baserat på anime-releasen och användarens tidszon.
             DateTimeZone userZone = DateTimeZoneProviders.Tzdb[user.TimeZoneID];
-            ZonedDateTime broadcastInUserZone = indexedAnime.ReleaseInstant.InZone(userZone);
 
-            watchDay = broadcastInUserZone.DayOfWeek switch
-            {
-                IsoDayOfWeek.Monday => EWeekday.Monday,
-                IsoDayOfWeek.Tuesday => EWeekday.Tuesday,
-                IsoDayOfWeek.Wednesday => EWeekday.Wednesday,
-                IsoDayOfWeek.Thursday => EWeekday.Thursday,
-                IsoDayOfWeek.Friday => EWeekday.Friday,
-                IsoDayOfWeek.Saturday => EWeekday.Saturday,
-                IsoDayOfWeek.Sunday => EWeekday.Sunday,
-                _ => throw new BadRequestException("Invalid day of week.")
-            };
-            LocalTime localTime = broadcastInUserZone.TimeOfDay;
+            Instant now = SystemClock.Instance.GetCurrentInstant();
+            Instant threeMonthsAgo = now.Minus(Duration.FromDays(90));
+            bool isOlderThanThreeMonths = indexedAnime.ReleaseInstant < threeMonthsAgo;
+
+            // Beroende på anime är äldre än 3 månader eller inte. Vid äldre används broadcast informationen.
+            ZonedDateTime releaseInUserZone = indexedAnime.ReleaseInstant.InZone(userZone);
+            LocalTime localTime = releaseInUserZone.TimeOfDay;
             time = TimeOnly.FromTimeSpan(TimeSpan.FromTicks(localTime.TickOfDay));
+
+            // Väljer veckodag baserat på ålder och om broadcast data finns.
+            if (isOlderThanThreeMonths && indexedAnime.BroadcastWeekday != null)
+            {
+                // För äldre animes (3+ månader), används broadcast weekday.
+                watchDay = indexedAnime.BroadcastWeekday;
+            }
+            else
+            {
+                // För nya animes, används premiere date weekday.
+                watchDay = releaseInUserZone.DayOfWeek switch
+                {
+                    IsoDayOfWeek.Monday => EWeekday.Monday,
+                    IsoDayOfWeek.Tuesday => EWeekday.Tuesday,
+                    IsoDayOfWeek.Wednesday => EWeekday.Wednesday,
+                    IsoDayOfWeek.Thursday => EWeekday.Thursday,
+                    IsoDayOfWeek.Friday => EWeekday.Friday,
+                    IsoDayOfWeek.Saturday => EWeekday.Saturday,
+                    IsoDayOfWeek.Sunday => EWeekday.Sunday,
+                    _ => throw new BadRequestException("Invalid day of week.")
+                };
+            }
         }
 
         entry.LocalTime = LocalTime.FromTicksSinceMidnight(time.Value.Ticks);
@@ -201,11 +234,11 @@ public class ScheduleService(ApplicationDbContext _context)
     }
 
     // Metod för att radera en schedule entry.
-    public async Task DeleteScheduleEntry(int userId, int scheduleEntryId)
+    public async Task DeleteScheduleEntry(int userId, int indexedAnimeId)
     {
         ScheduleEntryModel? entry = await _context.ScheduleEntries
-            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnimeId == scheduleEntryId)
-            ?? throw new Exception("Schedule entry doesn't exist for this user and anime.");
+            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnimeId == indexedAnimeId) ??
+                throw new Exception("Schedule entry doesn't exist for this user and anime.");
 
         _context.ScheduleEntries.Remove(entry);
 

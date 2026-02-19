@@ -29,7 +29,7 @@ public class ApplicationDbContext : IdentityDbContext<UserModel, IdentityRole<in
             .Property(ia => ia.Status)
             .HasConversion<string>()
             .HasMaxLength(20);
-    
+
         // Konvertera Instant till UTC+0 DateTime när det lagras i databasen.
         indexedAnimeEntity
             .Property(ia => ia.ReleaseInstant)
@@ -37,6 +37,12 @@ public class ApplicationDbContext : IdentityDbContext<UserModel, IdentityRole<in
                 v => v.ToDateTimeUtc(),
                 v => Instant.FromDateTimeUtc(DateTime.SpecifyKind(v, DateTimeKind.Utc))
             );
+
+        // Konvertera BroadcastWeekday enum till string i databasen.
+        indexedAnimeEntity
+            .Property(ia => ia.BroadcastWeekday)
+            .HasConversion<string?>()
+            .HasMaxLength(10);
 
         // Konfigurera ScheduleEntryModel.
         var scheduleEntryEntity = modelBuilder.Entity<ScheduleEntryModel>();
@@ -63,8 +69,8 @@ public class ApplicationDbContext : IdentityDbContext<UserModel, IdentityRole<in
             .Property(se => se.DayOfWeek)
             .HasConversion<string>()
             .HasMaxLength(20);
-            
-       // Konvertera LocalTime till en text sträng char 5.
+
+        // Konvertera LocalTime till en text sträng char 5.
         scheduleEntryEntity
             .Property(se => se.LocalTime)
             .HasConversion(
@@ -83,7 +89,7 @@ public class ApplicationDbContext : IdentityDbContext<UserModel, IdentityRole<in
             .WithMany()
             .HasForeignKey(pe => pe.AuthorId)
             .OnDelete(DeleteBehavior.Cascade);
-        
+
         // Konfigurera relationen mellan PostModel och IndexedAnimeModel.
         postEntity
             .HasOne(pe => pe.Anime)

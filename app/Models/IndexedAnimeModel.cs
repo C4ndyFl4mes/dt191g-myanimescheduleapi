@@ -13,4 +13,5 @@ public sealed class IndexedAnimeModel
     public required EStatus Status { get; set; }
     public int? TotalEpisodes { get; set; }
     public required Instant ReleaseInstant { get; set; }
+    public EWeekday? BroadcastWeekday { get; set; }
 }
