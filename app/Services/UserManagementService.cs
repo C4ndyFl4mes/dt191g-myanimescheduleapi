@@ -112,7 +112,7 @@ public class UserManagementService(UserManager<UserModel> _userManager, Applicat
         }).ToListAsync();
 
 
-        request.TimeZone ??= user.TimeZoneID; 
+        request.TimeZone ??= user.TimeZoneID;
 
         DateTimeZone timeZone = DateTimeZoneProviders.Tzdb[request.TimeZone]; // Hämtar DateTimeZone genom en sträng.
         List<PostResponse> convertedPosts = posts
@@ -150,5 +150,58 @@ public class UserManagementService(UserManager<UserModel> _userManager, Applicat
             Profile = profile,
             Activity = activity
         };
+    }
+
+    // Hämtar alla användare i en paginerad lista.
+    public async Task<DataPaginatedResponse<UserItemResponse>> GetUserList(int page, int perPage = 10)
+    {
+        int totalCount = await _userManager.Users.CountAsync();
+
+         if (totalCount == 0)
+            throw new NotFoundException("Det finns inga användare. Hur kunde du hamna här?");
+
+        List<UserModel> usersData = await _userManager.Users
+            .OrderByDescending(u => u.UserName)
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
+            .ToListAsync();
+
+        List<UserItemResponse> users = [];
+        foreach (UserModel user in usersData)
+        {
+            users.Add(new UserItemResponse
+            {
+                UserID = user.Id,
+                Username = user.UserName!,
+                Role = await GetRole(user),
+                TimeZone = user.TimeZoneID
+            });
+        }
+
+        int lastPage = (int)Math.Floor((double)totalCount / perPage) + 1;
+
+        return new DataPaginatedResponse<UserItemResponse>
+        {
+            Pagination = new()
+            {
+                last_visible_page = lastPage,
+                has_next_page = page < lastPage,
+                current_page = page,
+                items = new()
+                {
+                    count = 0,
+                    total = totalCount,
+                    per_page = perPage
+                }
+            },
+            Data = users
+        };
+    }
+
+    // Hämtar användarroll för en användare i användarlistan.
+    private async Task<string> GetRole(UserModel user)
+    {
+        IList<string> roles = await _userManager.GetRolesAsync(user);
+        return roles.FirstOrDefault() ?? "Member";
     }
 }

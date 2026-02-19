@@ -71,4 +71,12 @@ public class UserController(AuthService _authService, UserManagementService _use
 
         return Ok(updatedSettings);
     }
+
+    [HttpGet("list"), Authorize(Roles = "Moderator")]
+    public async Task<ActionResult<DataPaginatedResponse<UserItemResponse>>> GetUserList([FromQuery] int page)
+    {
+        DataPaginatedResponse<UserItemResponse> userList = await _userManagementService.GetUserList(page);
+
+        return Ok(userList);
+    }
 }
