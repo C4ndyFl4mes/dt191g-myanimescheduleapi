@@ -183,14 +183,21 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
             context.UpdateRange(pendingUpdates);
         }
 
+        int savedChanges = 0;
+        if (pendingInsertions.Count > 0 || pendingUpdates.Count > 0)
+        {
+            savedChanges = await context.SaveChangesAsync(token);
+        }
+
+        int deletedCount = 0;
         if (animesFlagedForFinishedAiring > 0)
         {
-            await context.IndexedAnimes.Where(ia => ia.Status == EStatus.FinishedAiring).ExecuteDeleteAsync(token);
+            deletedCount = await context.IndexedAnimes.Where(ia => ia.Status == EStatus.FinishedAiring).ExecuteDeleteAsync(token);
         }
 
         try
         {
-            int totalChanges = await context.SaveChangesAsync(token);
+            int totalChanges = savedChanges + deletedCount;
             Console.WriteLine($"Total changes: {totalChanges} | New entries: {pendingInsertions.Count} | Updated entries: {pendingUpdates.Count} | Deleted entries: {animesFlagedForFinishedAiring} | Unchanged entries: {unchangedRows}. Total Elapsed time: {Stopwatch.GetElapsedTime(startTime)}");
         }
         catch (Exception ex)

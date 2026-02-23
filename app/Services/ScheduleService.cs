@@ -101,8 +101,10 @@ public class ScheduleService(ApplicationDbContext _context)
     public async Task AddScheduleEntry(int userId, ScheduleRequest request)
     {
         ScheduleEntryModel? existingEntry = await _context.ScheduleEntries
-            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnime!.Mal_ID == request.Mal_ID) ??
-                throw new ConflictException("Schedule entry already exists for this user and anime.");
+            .FirstOrDefaultAsync(se => se.UserId == userId && se.IndexedAnime!.Mal_ID == request.Mal_ID);
+
+        if (existingEntry != null)
+            throw new ConflictException("Schedule entry already exists for this user and anime.");
 
         IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FirstOrDefaultAsync(ia => ia.Mal_ID == request.Mal_ID) ??
             throw new NotFoundException("Anime not found in index.");
