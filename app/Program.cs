@@ -4,6 +4,7 @@ using App.Models;
 using App.Services;
 using DotNetEnv;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
@@ -45,6 +46,15 @@ public class Program
             options.UseMySql(connectionString, new MariaDbServerVersion(new Version(11, 0, 0)));
         });
 
+        builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(options =>
+            {
+                options.Cookie.HttpOnly = true;
+                options.Cookie.Path = "/";
+                options.Cookie.SameSite = SameSiteMode.None;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            });
+
         builder.Services.AddAuthorization();
 
         builder.Services.AddIdentityApiEndpoints<UserModel>(options => options.SignIn.RequireConfirmedAccount = false).AddRoles<IdentityRole<int>>()
@@ -58,6 +68,17 @@ public class Program
             options.Password.RequireNonAlphanumeric = true;
             options.Password.RequireUppercase = true;
             options.Password.RequiredLength = 16;
+        });
+
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("AllowBlazorWasm", policy =>
+            {
+                policy.WithOrigins("http://localhost:5285")
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials();
+            });
         });
 
         builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly, includeInternalTypes: true);
@@ -83,6 +104,7 @@ public class Program
         builder.Services.AddScoped<ScheduleService>();
 
         var app = builder.Build();
+        app.UseCors("AllowBlazorWasm");
 
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
@@ -90,7 +112,7 @@ public class Program
             app.MapOpenApi();
         }
 
-        app.UseHttpsRedirection();
+        app.UseHttpsRedirection(); 
 
         app.UseAuthentication();
 
