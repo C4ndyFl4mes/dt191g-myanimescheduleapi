@@ -104,6 +104,14 @@ public class Program
         builder.Services.AddScoped<ScheduleService>();
 
         var app = builder.Build();
+
+        // Ser till att databasen är klar.
+        using (var scope = app.Services.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await context.Database.MigrateAsync();
+        }
+
         app.UseCors("AllowBlazorWasm");
 
         // Configure the HTTP request pipeline.
