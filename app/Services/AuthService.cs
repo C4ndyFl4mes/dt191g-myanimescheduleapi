@@ -2,10 +2,14 @@ using App.DTOs;
 using App.Exceptions;
 using App.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace App.Services;
 
-public class AuthService(UserManager<UserModel> _userManager, SignInManager<UserModel> _signInManager)
+public class AuthService(UserManager<UserModel> _userManager, IConfiguration _configuration)
 {
     // Skapar en användare.
     public async Task<ProfileResponse> SignUp(SignUpRequest request)
@@ -59,15 +63,18 @@ public class AuthService(UserManager<UserModel> _userManager, SignInManager<User
         UserModel? user = await _userManager.FindByEmailAsync(request.Email) ??
             throw new UnauthorizedException("Invalid credentials.");
 
-        var result = await _signInManager.PasswordSignInAsync(user, request.Password, isPersistent: false, lockoutOnFailure: false);
-        if (!result.Succeeded)
+        bool isValidPassword = await _userManager.CheckPasswordAsync(user, request.Password);
+        if (!isValidPassword)
             throw new UnauthorizedException("Invalid credentials.");
 
         IList<string>? roles = await _userManager.GetRolesAsync(user);
         string role = roles.FirstOrDefault() ?? "Member";
 
+        string token = GenerateJwtToken(user, role);
+
         return new ProfileResponse
         {
+            Token = token,
             Username = user.UserName!,
             Role = role,
             Settings = new()
@@ -80,9 +87,39 @@ public class AuthService(UserManager<UserModel> _userManager, SignInManager<User
         };
     }
 
-    // Loggar ut en användare.
-    public async Task SignOut()
+    // Loggar ut en användare (client-side token removal). // Förlegad på grund av att Cookies inte längre används.
+    public Task SignOut()
     {
-        await _signInManager.SignOutAsync();
+        return Task.CompletedTask;
+    }
+
+    // Genererar en JWT token för användaren.
+    private string GenerateJwtToken(UserModel user, string role)
+    {
+        string jwtSecret = _configuration["JwtSecret"] ?? 
+            throw new InternalServerException("JWT secret not configured");
+        string jwtIssuer = _configuration["JwtIssuer"] ?? "MyAnimeScheduleAPI";
+        string jwtAudience = _configuration["JwtAudience"] ?? "MyAnimeScheduleClient";
+
+        SymmetricSecurityKey securityKey = new(Encoding.UTF8.GetBytes(jwtSecret));
+        SigningCredentials credentials = new(securityKey, SecurityAlgorithms.HmacSha256);
+
+        Claim[] claims =
+        [
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.UserName!),
+            new Claim(ClaimTypes.Email, user.Email!),
+            new Claim(ClaimTypes.Role, role)
+        ];
+
+        JwtSecurityToken token = new(
+            issuer: jwtIssuer,
+            audience: jwtAudience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddDays(7),
+            signingCredentials: credentials
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

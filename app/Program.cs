@@ -4,11 +4,13 @@ using App.Models;
 using App.Services;
 using DotNetEnv;
 using FluentValidation;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Pomelo.EntityFrameworkCore.MySql.Internal;
+using System.Text;
 
 
 
@@ -41,19 +43,34 @@ public class Program
 
         var connectionString = $"Server={host};Port={port};Database={database};User={user};Password={password};";
 
+        string jwtSecret = Environment.GetEnvironmentVariable("JwtSecret") ?? 
+            throw new Exception("JwtSecret not set in .ENV");
+        string jwtIssuer = Environment.GetEnvironmentVariable("JwtIssuer") ?? throw new Exception("JwtIssuer not set in .ENV");
+        string jwtAudience = Environment.GetEnvironmentVariable("JwtAudience") ?? throw new Exception("JwtAudience not set in .ENV");
+
+        builder.Configuration["JwtSecret"] = jwtSecret;
+        builder.Configuration["JwtIssuer"] = jwtIssuer;
+        builder.Configuration["JwtAudience"] = jwtAudience;
+
         // Add services to the container.
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
             options.UseMySql(connectionString, new MariaDbServerVersion(new Version(9, 0, 0)));
         });
 
-        builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-            .AddCookie(options =>
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
             {
-                options.Cookie.HttpOnly = true;
-                options.Cookie.Path = "/";
-                options.Cookie.SameSite = SameSiteMode.None;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtIssuer,
+                    ValidAudience = jwtAudience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+                };
             });
 
         builder.Services.AddAuthorization();
@@ -77,8 +94,7 @@ public class Program
             {
                 policy.WithOrigins("http://localhost:5285")
                       .AllowAnyHeader()
-                      .AllowAnyMethod()
-                      .AllowCredentials();
+                      .AllowAnyMethod();
             });
         });
 
