@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
+using Pomelo.EntityFrameworkCore.MySql.Internal;
 
 
 
@@ -43,7 +44,7 @@ public class Program
         // Add services to the container.
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
-            options.UseMySql(connectionString, new MariaDbServerVersion(new Version(11, 0, 0)));
+            options.UseMySql(connectionString, new MariaDbServerVersion(new Version(9, 0, 0)));
         });
 
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
