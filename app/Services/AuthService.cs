@@ -98,8 +98,8 @@ public class AuthService(UserManager<UserModel> _userManager, IConfiguration _co
     {
         string jwtSecret = _configuration["JwtSecret"] ?? 
             throw new InternalServerException("JWT secret not configured");
-        string jwtIssuer = _configuration["JwtIssuer"] ?? "MyAnimeScheduleAPI";
-        string jwtAudience = _configuration["JwtAudience"] ?? "MyAnimeScheduleClient";
+        string jwtIssuer = _configuration["JwtIssuer"]!;
+        string jwtAudience = _configuration["JwtAudience"]!;
 
         SymmetricSecurityKey securityKey = new(Encoding.UTF8.GetBytes(jwtSecret));
         SigningCredentials credentials = new(securityKey, SecurityAlgorithms.HmacSha256);

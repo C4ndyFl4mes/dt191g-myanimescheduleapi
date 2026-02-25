@@ -59,8 +59,9 @@ public class ScheduleService(ApplicationDbContext _context)
 
             bool isCurrentlyAiring = entry.IndexedAnime.Status == EStatus.CurrentlyAiring;
             bool hasAlreadyReleased = releaseInstant <= now;
+            bool releasesThisWeek = releaseDate >= currentMonday && releaseDate <= currentSunday;
 
-            if (!isCurrentlyAiring && !hasAlreadyReleased)
+            if (!isCurrentlyAiring && !hasAlreadyReleased && !releasesThisWeek)
             {
                 continue;
             }

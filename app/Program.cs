@@ -75,8 +75,9 @@ public class Program
 
         builder.Services.AddAuthorization();
 
-        builder.Services.AddIdentityApiEndpoints<UserModel>(options => options.SignIn.RequireConfirmedAccount = false).AddRoles<IdentityRole<int>>()
-            .AddEntityFrameworkStores<ApplicationDbContext>();
+        builder.Services.AddIdentityCore<UserModel>(options => options.SignIn.RequireConfirmedAccount = false)
+             .AddRoles<IdentityRole<int>>()
+             .AddEntityFrameworkStores<ApplicationDbContext>();
 
         // Lösenordets struktur.
         builder.Services.Configure<IdentityOptions>(options =>
@@ -139,6 +140,9 @@ public class Program
 
         app.UseHttpsRedirection(); 
 
+        app.UseMiddleware<GlobalExceptionHandler>();
+
+
         app.UseAuthentication();
 
         app.UseAuthorization();
@@ -200,7 +204,6 @@ public class Program
             options.RoutePrefix = "api-docs";
         });
 
-        app.UseMiddleware<GlobalExceptionHandler>();
 
         app.Run();
     }
