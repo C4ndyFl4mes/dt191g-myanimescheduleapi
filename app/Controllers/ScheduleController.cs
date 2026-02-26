@@ -37,16 +37,16 @@ public class ScheduleController(ScheduleService _scheduleService) : ControllerBa
         int userID = User.GetUserID();
 
         await _scheduleService.UpdateScheduleEntry(userID, request);
-        return Ok(new { Message = "Schedule entry update successfully." });
+        return Ok(new { Message = "Schedule entry updated successfully." });
     }
 
     // Endpoint för DELETE: den raderar en schedule entry för en användare.
-    [HttpDelete("entry"), Authorize]
+    [HttpDelete("entry/{indexedAnimeId}"), Authorize]
     public async Task<ActionResult> DeleteScheduleEntry(int indexedAnimeId)
     {
         int userID = User.GetUserID();
 
         await _scheduleService.DeleteScheduleEntry(userID, indexedAnimeId);
-        return NoContent();
+        return Ok(new { Message = "Schedule entry deleted successfully." });
     }
 }

@@ -44,7 +44,7 @@ public class UserController(AuthService _authService, UserManagementService _use
     {
         await _userManagementService.DeleteUser(User.GetUserID(), targetID);
 
-        return NoContent();
+        return Ok(new { message = "Successfully deleted a user." });
     }
 
     [HttpGet("info/{page}"), Authorize]
