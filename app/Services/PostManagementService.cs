@@ -34,7 +34,8 @@ public class PostManagementService(ApplicationDbContext _context, UserManager<Us
             AuthorID = p.AuthorId,
             AuthorName = p.Author!.UserName!,
             Content = p.Content,
-            CreatedAt = p.CreatedAt
+            CreatedAt = p.CreatedAt,
+            ProfileImageURL = p.Author.ProfileImageURL
         }).ToListAsync();
 
         // Hämtar DateTimeZone genom en sträng. ! pga i query i controller måste den vara string, därför är denna inte null.
@@ -46,7 +47,8 @@ public class PostManagementService(ApplicationDbContext _context, UserManager<Us
                 AuthorID = p.AuthorID,
                 AuthorName = p.AuthorName,
                 Content = p.Content,
-                LocalDateTime = $"{p.CreatedAt.InZone(timeZone).LocalDateTime.Date} {p.CreatedAt.InZone(timeZone).LocalDateTime.TimeOfDay}"
+                LocalDateTime = $"{p.CreatedAt.InZone(timeZone).LocalDateTime.Date} {p.CreatedAt.InZone(timeZone).LocalDateTime.TimeOfDay}",
+                ProfileImageURL = p.ProfileImageURL
             }).ToList();
 
 

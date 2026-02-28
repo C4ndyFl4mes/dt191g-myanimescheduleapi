@@ -108,7 +108,9 @@ public class UserManagementService(UserManager<UserModel> _userManager, Applicat
             AuthorID = p.AuthorId,
             AuthorName = p.Author!.UserName!,
             Content = p.Content,
-            CreatedAt = p.CreatedAt
+            CreatedAt = p.CreatedAt,
+            ProfileImageUrl = p.Author.ProfileImageURL
+            
         }).ToListAsync();
 
 
@@ -122,7 +124,8 @@ public class UserManagementService(UserManager<UserModel> _userManager, Applicat
                 AuthorID = p.AuthorID,
                 AuthorName = p.AuthorName,
                 Content = p.Content,
-                LocalDateTime = $"{p.CreatedAt.InZone(timeZone).LocalDateTime.Date} {p.CreatedAt.InZone(timeZone).LocalDateTime.TimeOfDay}"
+                LocalDateTime = $"{p.CreatedAt.InZone(timeZone).LocalDateTime.Date} {p.CreatedAt.InZone(timeZone).LocalDateTime.TimeOfDay}",
+                ProfileImageURL = p.ProfileImageUrl
             }).ToList();
 
 

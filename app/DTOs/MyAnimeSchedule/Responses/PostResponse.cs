@@ -9,4 +9,5 @@ public record PostResponse
     public required string AuthorName { get; set; }
     public required string Content { get; set; }
     public required string LocalDateTime { get; set; }
+    public string? ProfileImageURL { get; set; }
 }
