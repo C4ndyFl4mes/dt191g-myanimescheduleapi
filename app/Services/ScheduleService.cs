@@ -72,7 +72,8 @@ public class ScheduleService(ApplicationDbContext _context)
                 Id = entry.IndexedAnimeId,
                 Title = entry.IndexedAnime.Title,
                 ImageURL = entry.IndexedAnime.ImageURL,
-                Time = ScheduleTimePattern.Format(displayTime)
+                Time = ScheduleTimePattern.Format(displayTime),
+                MalID = entry.IndexedAnime.Mal_ID
             };
 
             // Grupperar entries per veckodag.

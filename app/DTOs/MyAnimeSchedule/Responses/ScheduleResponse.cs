@@ -19,4 +19,5 @@ public record ScheduleEntryResponse
     public required string Title { get; set; }
     public required string ImageURL { get; set; }
     public required string Time { get; set; }
+    public required int MalID { get; set; }
 }

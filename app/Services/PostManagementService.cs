@@ -13,18 +13,19 @@ public class PostManagementService(ApplicationDbContext _context, UserManager<Us
     // Hämtar alla poster tillhörande en indexerad anime.
     public async Task<DataPaginatedResponse<PostResponse>> GetTargetPosts(PostGetRequest request)
     {
-        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FindAsync(request.TargetID) ??
+        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes
+            .FirstOrDefaultAsync(ia => ia.Mal_ID == request.TargetID) ??
             throw new NotFoundException("Target thread not available.");
 
         // Beräknar antalet poster som tillhör en viss anime.
         int totalCount = await _context.Posts
-            .Where(p => p.AnimeId == indexedAnime.Id)
+            .Where(p => p.AnimeId == indexedAnime.Mal_ID)
             .CountAsync();
 
         // Använder en anonym lista för att sedan kunna lägga till rätt lokal datum och tid.
         var posts = await _context.Posts
         .Include(p => p.Author)
-        .Where(p => p.AnimeId == indexedAnime.Id)
+        .Where(p => p.AnimeId == indexedAnime.Mal_ID)
         .OrderByDescending(p => p.CreatedAt)
         .Skip((request.Page - 1) * request.PerPage)
         .Take(request.PerPage)
@@ -75,7 +76,8 @@ public class PostManagementService(ApplicationDbContext _context, UserManager<Us
     // Skapar en post. En användare kan lägga upp poster till en indexerad anime.
     public async Task SendToTarget(PostRequest request, int userID)
     {
-        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes.FindAsync(request.TargetID) ??
+        IndexedAnimeModel? indexedAnime = await _context.IndexedAnimes
+            .FirstOrDefaultAsync(ia => ia.Mal_ID == request.TargetID) ??
             throw new NotFoundException("Target thread not available.");
 
         UserModel? user = await _context.Users.FindAsync(userID) ??
@@ -84,7 +86,7 @@ public class PostManagementService(ApplicationDbContext _context, UserManager<Us
         PostModel post = new()
         {
             AuthorId = user.Id,
-            AnimeId = indexedAnime.Id,
+            AnimeId = indexedAnime.Mal_ID,
             Content = request.Content,
             CreatedAt = SystemClock.Instance.GetCurrentInstant()
         };

@@ -15,7 +15,7 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using PeriodicTimer timer = new(TimeSpan.FromDays(1));
+        using PeriodicTimer timer = new(TimeSpan.FromHours(4)); // Kör indexeringen var 4:e timme.
         do
         {
             try
@@ -29,7 +29,6 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
         }
         while (await timer.WaitForNextTickAsync(stoppingToken) && !stoppingToken.IsCancellationRequested);
     }
-
     // Indexerar alla animes, samt uppdaterar och raderar om det behövs.
     private async Task StartIndexingAnimes(CancellationToken token)
     {
@@ -37,80 +36,13 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
         using IServiceScope scope = _scopeFactory.CreateScope();
         ApplicationDbContext context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        // Hämtar animes från Jikan API.
-        int currentPage = 1;
-        Result? result;
-        Dictionary<int, PendingAnime> pendingAnimes = [];
+        // Hämtar animes från Jikan API. Part 1.
+        Dictionary<int, PendingAnime> pendingAnimesPart1 = await Fetch("https://api.jikan.moe/v4/seasons/now?continuing&page=", 1, context, startTime, []);
 
-        do
-        {
-            result = await _http.GetFromJsonAsync<Result>($"https://api.jikan.moe/v4/seasons/now?continuing&page={currentPage}");
-            if (result == null)
-            {
-                break; // Om det blir null hoppar vi ur do-while-loopen för att sedan hamna i if-satsen under loopen.
-            }
+        (string season, int year) = GetNextAnimeSeason();
 
-            for (int i = 0; i < result.data.Count; i++)
-            {
-                IndexableAnime anime = result.data[i];
-
-                Instant? releaseInstant = GetBroadcastInstant(anime.aired.from, anime.broadcast?.time, anime.broadcast?.timezone);
-
-                if (releaseInstant == null)
-                {
-                    continue; // Skippar denna anime då det antagligen blev något fel i GetBroadcastInstant exempelvis att anime.aired.from är ogiltig.
-                }
-
-                // Extraherar broadcast weekday från broadcast data.
-                EWeekday? broadcastWeekday = null;
-                if (anime.broadcast?.day != null)
-                {
-                    broadcastWeekday = anime.broadcast.day.ToLower() switch
-                    {
-                        "monday" or "mondays" => EWeekday.Monday,
-                        "tuesday" or "tuesdays" => EWeekday.Tuesday,
-                        "wednesday" or "wednesdays" => EWeekday.Wednesday,
-                        "thursday" or "thursdays" => EWeekday.Thursday,
-                        "friday" or "fridays" => EWeekday.Friday,
-                        "saturday" or "saturdays" => EWeekday.Saturday,
-                        "sunday" or "sundays" => EWeekday.Sunday,
-                        _ => null
-                    };
-                }
-
-                try
-                {
-                    // Lägger till en anime i pending dictionary.
-                    pendingAnimes.Add(anime.mal_id, new PendingAnime
-                    {
-                        Mal_ID = anime.mal_id,
-                        Title = anime.titles.FirstOrDefault(t => t.type == "English")?.title ?? anime.titles.FirstOrDefault(t => t.type == "Default")?.title ?? "Unknown Title",
-                        ImageURL = anime.images.webp.image_url,
-                        Status = anime.status,
-                        TotalEpisodes = anime.episodes,
-                        ReleaseInstant = (Instant)releaseInstant,
-                        BroadcastWeekday = broadcastWeekday
-                    });
-                }
-                catch (ArgumentException ex)
-                {
-                    _logger.LogWarning(ex, "Tried to add an anime with the same Mal_ID in the current indexing schedule. Action taken: skip the current iteration.");
-                    continue;
-                }
-            }
-
-            Console.WriteLine($"{pendingAnimes.Count} animes is now pending. Progress: {result.pagination.current_page}/{result.pagination.last_visible_page}. Time Elapsed: {Stopwatch.GetElapsedTime(startTime)}");
-            currentPage++;
-
-            await Task.Delay(1000); // API:ets rate limit är 3 req/s och 60 req/min. 
-        }
-        while (result!.pagination.has_next_page);
-
-        // Avbryter indexeringen.
-        if (result == null)
-        {
-            throw new Exception("Unable to fetch animes from Jikan API.");
-        }
+        // Hämtar animes från Jikan API. Part 2.
+        Dictionary<int, PendingAnime> pendingAnimes = await Fetch($"https://api.jikan.moe/v4/seasons/{year}/{season}?page=", 2, context, startTime, pendingAnimesPart1);
 
         List<IndexedAnimeModel> existingAnimes = await context.IndexedAnimes.AsNoTracking().ToListAsync(token);
         List<IndexedAnimeModel> pendingUpdates = [];
@@ -205,6 +137,110 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
             _logger.LogError(ex, "Tried saving to database, but something went wrong.");
             return;
         }
+    }
+
+    private async Task<Dictionary<int, PendingAnime>> Fetch(string url, int part, ApplicationDbContext context, long startTime, Dictionary<int, PendingAnime> pendingAnimes)
+    {
+        // Hämtar animes från Jikan API.
+        int currentPage = 1;
+        Result? result;
+
+        do
+        {
+            result = await _http.GetFromJsonAsync<Result>($"{url}{currentPage}");
+            if (result == null)
+            {
+                break; // Om det blir null hoppar vi ur do-while-loopen för att sedan hamna i if-satsen under loopen.
+            }
+
+            for (int i = 0; i < result.data.Count; i++)
+            {
+                IndexableAnime anime = result.data[i];
+
+                Instant? releaseInstant = GetBroadcastInstant(anime.aired.from, anime.broadcast?.time, anime.broadcast?.timezone);
+
+                if (releaseInstant == null)
+                {
+                    continue; // Skippar denna anime då det antagligen blev något fel i GetBroadcastInstant exempelvis att anime.aired.from är ogiltig.
+                }
+
+                // Extraherar broadcast weekday från broadcast data.
+                EWeekday? broadcastWeekday = null;
+                if (anime.broadcast?.day != null)
+                {
+                    broadcastWeekday = anime.broadcast.day.ToLower() switch
+                    {
+                        "monday" or "mondays" => EWeekday.Monday,
+                        "tuesday" or "tuesdays" => EWeekday.Tuesday,
+                        "wednesday" or "wednesdays" => EWeekday.Wednesday,
+                        "thursday" or "thursdays" => EWeekday.Thursday,
+                        "friday" or "fridays" => EWeekday.Friday,
+                        "saturday" or "saturdays" => EWeekday.Saturday,
+                        "sunday" or "sundays" => EWeekday.Sunday,
+                        _ => null
+                    };
+                }
+
+                try
+                {
+                    // Lägger till en anime i pending dictionary.
+                    pendingAnimes.Add(anime.mal_id, new PendingAnime
+                    {
+                        Mal_ID = anime.mal_id,
+                        Title = anime.titles.FirstOrDefault(t => t.type == "English")?.title ?? anime.titles.FirstOrDefault(t => t.type == "Default")?.title ?? "Unknown Title",
+                        ImageURL = anime.images.webp.image_url,
+                        Status = anime.status,
+                        TotalEpisodes = anime.episodes,
+                        ReleaseInstant = (Instant)releaseInstant,
+                        BroadcastWeekday = broadcastWeekday
+                    });
+                }
+                catch (ArgumentException ex)
+                {
+                    _logger.LogWarning(ex, "Tried to add an anime with the same Mal_ID in the current indexing schedule. Action taken: skip the current iteration.");
+                    continue;
+                }
+            }
+
+            Console.WriteLine($"{pendingAnimes.Count} animes is now pending. Part: {part}/2. Progress:  {result.pagination.current_page}/{result.pagination.last_visible_page}. Time Elapsed: {Stopwatch.GetElapsedTime(startTime)}");
+            currentPage++;
+
+            await Task.Delay(2000); // API:ets rate limit är 3 req/s och 60 req/min. 
+        }
+        while (result!.pagination.has_next_page);
+
+        // Avbryter indexeringen.
+        if (result == null)
+        {
+            throw new Exception("Unable to fetch animes from Jikan API.");
+        }
+
+        return pendingAnimes;
+    }
+
+    // Ser vilket anime season det är nu och returnerar nästa anime season. Exempelvis om det är vinter så returneras "spring" och det aktuella året.
+    private (string season, int year) GetNextAnimeSeason()
+    {
+        var now = DateTime.UtcNow;
+        int year = now.Year;
+        int month = now.Month;
+
+        string currentSeason = month switch
+        {
+            >= 1 and <= 3 => "winter",
+            >= 4 and <= 6 => "spring",
+            >= 7 and <= 9 => "summer",
+            _ => "fall"
+        };
+
+        return currentSeason switch
+        {
+            "winter" => ("spring", year),
+            "spring" => ("summer", year),
+            "summer" => ("fall", year),
+            "fall" => ("winter", year + 1),
+            _ => throw new Exception()
+        };
     }
 
     // Hämtar en Instant för release. Konverterar airedFromDate till Asia/Tokyo (eller om annan broadcastTimezone är given) med eventuell broadcasting tid.

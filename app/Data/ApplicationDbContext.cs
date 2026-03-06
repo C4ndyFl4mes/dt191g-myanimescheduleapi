@@ -44,6 +44,14 @@ public class ApplicationDbContext : IdentityDbContext<UserModel, IdentityRole<in
             .HasConversion<string?>()
             .HasMaxLength(10);
 
+        // Sätt Mal_ID som unik (alternate key) för att möjliggöra foreign key från PostModel.
+        indexedAnimeEntity
+            .HasAlternateKey(ia => ia.Mal_ID);
+
+        indexedAnimeEntity
+            .HasIndex(ia => ia.Mal_ID)
+            .IsUnique();
+
         // Konfigurera ScheduleEntryModel.
         var scheduleEntryEntity = modelBuilder.Entity<ScheduleEntryModel>();
 
@@ -91,10 +99,12 @@ public class ApplicationDbContext : IdentityDbContext<UserModel, IdentityRole<in
             .OnDelete(DeleteBehavior.Cascade);
 
         // Konfigurera relationen mellan PostModel och IndexedAnimeModel.
+        // AnimeId refererar till Mal_ID istället för IndexedAnimeModel.Id.
         postEntity
             .HasOne(pe => pe.Anime)
             .WithMany()
             .HasForeignKey(pe => pe.AnimeId)
+            .HasPrincipalKey(ia => ia.Mal_ID)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Konvertera Instant till DateTime UTC+0 när det lagras i databasen.

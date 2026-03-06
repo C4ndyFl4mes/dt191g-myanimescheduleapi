@@ -65,7 +65,7 @@ namespace app.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     PhoneNumberConfirmed = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     TwoFactorEnabled = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    LockoutEnd = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: true),
+                    LockoutEnd = table.Column<DateTimeOffset>(type: "datetime", nullable: true),
                     LockoutEnabled = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     AccessFailedCount = table.Column<int>(type: "int", nullable: false)
                 },
@@ -89,13 +89,14 @@ namespace app.Migrations
                     Status = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     TotalEpisodes = table.Column<int>(type: "int", nullable: true),
-                    ReleaseInstant = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    ReleaseInstant = table.Column<DateTime>(type: "datetime", nullable: false),
                     BroadcastWeekday = table.Column<string>(type: "varchar(10)", maxLength: 10, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_IndexedAnimes", x => x.Id);
+                    table.UniqueConstraint("AK_IndexedAnimes_Mal_ID", x => x.Mal_ID);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
@@ -151,9 +152,9 @@ namespace app.Migrations
                 name: "AspNetUserLogins",
                 columns: table => new
                 {
-                    LoginProvider = table.Column<string>(type: "varchar(255)", nullable: false)
+                    LoginProvider = table.Column<string>(type: "varchar(95)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    ProviderKey = table.Column<string>(type: "varchar(255)", nullable: false)
+                    ProviderKey = table.Column<string>(type: "varchar(95)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     ProviderDisplayName = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -201,9 +202,9 @@ namespace app.Migrations
                 columns: table => new
                 {
                     UserId = table.Column<int>(type: "int", nullable: false),
-                    LoginProvider = table.Column<string>(type: "varchar(255)", nullable: false)
+                    LoginProvider = table.Column<string>(type: "varchar(95)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    Name = table.Column<string>(type: "varchar(255)", nullable: false)
+                    Name = table.Column<string>(type: "varchar(95)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Value = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4")
@@ -230,7 +231,7 @@ namespace app.Migrations
                     AnimeId = table.Column<int>(type: "int", nullable: false),
                     Content = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "datetime", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -245,7 +246,7 @@ namespace app.Migrations
                         name: "FK_Posts_IndexedAnimes_AnimeId",
                         column: x => x.AnimeId,
                         principalTable: "IndexedAnimes",
-                        principalColumn: "Id",
+                        principalColumn: "Mal_ID",
                         onDelete: ReferentialAction.Cascade);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
@@ -314,6 +315,12 @@ namespace app.Migrations
                 name: "UserNameIndex",
                 table: "AspNetUsers",
                 column: "NormalizedUserName",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_IndexedAnimes_Mal_ID",
+                table: "IndexedAnimes",
+                column: "Mal_ID",
                 unique: true);
 
             migrationBuilder.CreateIndex(

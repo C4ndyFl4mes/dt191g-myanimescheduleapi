@@ -42,7 +42,7 @@ namespace app.Migrations
                         .HasColumnType("int");
 
                     b.Property<DateTime>("ReleaseInstant")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -57,6 +57,9 @@ namespace app.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Mal_ID")
+                        .IsUnique();
 
                     b.ToTable("IndexedAnimes");
                 });
@@ -81,7 +84,7 @@ namespace app.Migrations
                         .HasColumnType("varchar(500)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime");
 
                     b.HasKey("Id");
 
@@ -146,7 +149,7 @@ namespace app.Migrations
                         .HasColumnType("tinyint(1)");
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime");
 
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
@@ -277,10 +280,10 @@ namespace app.Migrations
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<int>", b =>
                 {
                     b.Property<string>("LoginProvider")
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("varchar(95)");
 
                     b.Property<string>("ProviderKey")
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("varchar(95)");
 
                     b.Property<string>("ProviderDisplayName")
                         .HasColumnType("longtext");
@@ -316,10 +319,10 @@ namespace app.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("LoginProvider")
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("varchar(95)");
 
                     b.Property<string>("Name")
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("varchar(95)");
 
                     b.Property<string>("Value")
                         .HasColumnType("longtext");
@@ -334,6 +337,7 @@ namespace app.Migrations
                     b.HasOne("App.Models.IndexedAnimeModel", "Anime")
                         .WithMany()
                         .HasForeignKey("AnimeId")
+                        .HasPrincipalKey("Mal_ID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
