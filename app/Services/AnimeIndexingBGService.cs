@@ -127,16 +127,9 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
             deletedCount = await context.IndexedAnimes.Where(ia => ia.Status == EStatus.FinishedAiring).ExecuteDeleteAsync(token);
         }
 
-        try
-        {
-            int totalChanges = savedChanges + deletedCount;
-            Console.WriteLine($"Total changes: {totalChanges} | New entries: {pendingInsertions.Count} | Updated entries: {pendingUpdates.Count} | Deleted entries: {animesFlagedForFinishedAiring} | Unchanged entries: {unchangedRows}. Total Elapsed time: {Stopwatch.GetElapsedTime(startTime)}");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Tried saving to database, but something went wrong.");
-            return;
-        }
+
+        int totalChanges = savedChanges + deletedCount;
+        Console.WriteLine($"Total changes: {totalChanges} | New entries: {pendingInsertions.Count} | Updated entries: {pendingUpdates.Count} | Deleted entries: {animesFlagedForFinishedAiring} | Unchanged entries: {unchangedRows}. Total Elapsed time: {Stopwatch.GetElapsedTime(startTime)}");
     }
 
     private async Task<Dictionary<int, PendingAnime>> Fetch(string url, int part, ApplicationDbContext context, long startTime, Dictionary<int, PendingAnime> pendingAnimes)
@@ -273,7 +266,7 @@ public class AnimeIndexingBGService(ILogger<AnimeIndexingBGService> _logger, ISe
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to parse anime broadcast time: {AiredFromDate}.", airedFromDate);
+            _logger.LogWarning(ex, "Failed to parse anime broadcast time: {BroadcastTime}.", broadcastTime);
             return null;
         }
     }

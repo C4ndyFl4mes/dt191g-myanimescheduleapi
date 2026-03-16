@@ -48,9 +48,6 @@ public class ScheduleService(ApplicationDbContext _context)
             EWeekday displayDay = entry.DayOfWeek;
             LocalTime displayTime = entry.LocalTime;
 
-            LocalDate displayDate = currentMonday.PlusDays((int)displayDay);
-            LocalDateTime displayDateTime = displayDate + displayTime;
-            Instant displayInstant = userZone.AtStrictly(displayDateTime).ToInstant();
 
             // I schemat om Status är CurrentlyAiring eller om release instant förfaller i det förflutna.
             Instant releaseInstant = entry.IndexedAnime.ReleaseInstant;
